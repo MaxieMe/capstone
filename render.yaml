@@ -1,0 +1,40 @@
+# render.yaml
+
+services:
+  - type: web
+    name: one11-capstone-app
+
+    dockerfilePath: Dockerfile
+    port: 80
+    plan: free
+
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_KEY
+        value: base64:rhjBiMBRnOVM+7agq0/jEKKzLyCBU4GfzoE1CZt7v6o=
+
+      # 🚨 LARAVEL DATABASE CONNECTION VARIABLES
+      - key: DB_CONNECTION
+        value: mysql
+      - key: DB_HOST
+        # Paki-palitan ito ng ACTUAL PRIVATE HOSTNAME STRING galing sa Railway kung hindi gumana.
+        value: ${{RAILWAY_PRIVATE_DOMAIN}}
+      - key: DB_PORT
+        value: "3306"
+      - key: DB_DATABASE
+        value: railway
+      - key: DB_USERNAME
+        value: root
+      - key: DB_PASSWORD
+        value: mZvHHelXdYQpAWwLXxZmSANbWrWOaanV
+
+      # Recommended Variables
+      - key: APP_DEBUG
+        value: false
+      - key: CACHE_DRIVER
+        value: file
+      - key: SESSION_DRIVER
+        value: file
+      - key: LOG_CHANNEL
+        value: stderr

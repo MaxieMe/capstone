@@ -9,7 +9,7 @@ import AuthLayout from '@/layouts/auth-layout';
 import { register } from '@/routes';
 import { store } from '@/routes/login';
 import { request } from '@/routes/password';
-import { Form, Head } from '@inertiajs/react';
+import { Form, Head, router } from '@inertiajs/react';
 import { useState } from 'react';
 
 interface LoginProps {
@@ -23,28 +23,30 @@ export default function Login({
     canResetPassword,
     canRegister,
 }: LoginProps) {
-
     const [showPassword, setShowPassword] = useState(false);
-    // Ang isFocused ay hindi ginagamit, pero hinayaan ko na lang dito.
 
     const togglePasswordVisibility = () => {
-        setShowPassword(prev => !prev);
+        setShowPassword((prev) => !prev);
+    };
+
+    // 💜 Exit button handler → goes back to front page
+    const handleExit = () => {
+        router.visit('/');
     };
 
     return (
         <AuthLayout
             title="Log in to your account"
             description="Enter your email and password below to log in"
-            // ⭐ IDAGDAG ANG BACKGROUND CLASS DITO
-            backgroundClass="bg-white bg-[url('/images/welcome-bg.jpg')] bg-cover bg-center"
+            backgroundClass="bg-white bg-[url('/images/welcome-bg.jpg')] bg-cover bg-center relative"
         >
             <Head title="Log in" />
 
             <Form
                 {...store.form()}
-                autoComplete='off'
+                autoComplete="off"
                 resetOnSuccess={['password']}
-                className="flex flex-col gap-6"
+                className="flex flex-col gap-6 relative"
             >
                 {({ processing, errors }) => (
                     <>
@@ -65,50 +67,46 @@ export default function Login({
                             </div>
 
                             <div className="grid gap-2">
-                            <div className="flex items-center">
-                                <Label htmlFor="password">Password</Label>
-                                {canResetPassword && (
-                                <TextLink href={request()} className="ml-auto text-sm">
-                                    Forgot password?
-                                </TextLink>
-                                )}
-                            </div>
+                                <div className="flex items-center">
+                                    <Label htmlFor="password">Password</Label>
+                                    {canResetPassword && (
+                                        <TextLink href={request()} className="ml-auto text-sm">
+                                            Forgot password?
+                                        </TextLink>
+                                    )}
+                                </div>
 
-                            <div className="relative group">
-                                <Input
-                                id="password"
-                                type={showPassword ? 'text' : 'password'}
-                                name="password"
-                                required
-                                autoComplete="current-password"
-                                placeholder="Password"
-                                className="peer pr-10"
-                                aria-invalid={Boolean(errors.password)}
-                                data-test="password-input"
-                                />
-                                <button
-                                type="button"
-                                tabIndex={-1}
-                                onMouseDown={(e) => e.preventDefault()}
-                                onClick={togglePasswordVisibility}
-                                className="hidden group-focus-within:flex peer-[:not(:placeholder-shown)]:flex absolute inset-y-0 right-2 items-center text-xl focus:outline-none"
-                                aria-label={showPassword ? 'Hide password' : 'Show password'}
-                                aria-controls="password"
-                                aria-pressed={showPassword}
-                                title={showPassword ? 'Hide password' : 'Show password'}
-                                >
-                                {showPassword ? '🙈' : '👁️'}
-                                </button>
-                            </div>
-                            <InputError message={errors.password} />
+                                <div className="relative group">
+                                    <Input
+                                        id="password"
+                                        type={showPassword ? 'text' : 'password'}
+                                        name="password"
+                                        required
+                                        autoComplete="current-password"
+                                        placeholder="Password"
+                                        className="peer pr-10"
+                                        aria-invalid={Boolean(errors.password)}
+                                        data-test="password-input"
+                                    />
+                                    <button
+                                        type="button"
+                                        tabIndex={-1}
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={togglePasswordVisibility}
+                                        className="hidden group-focus-within:flex peer-[:not(:placeholder-shown)]:flex absolute inset-y-0 right-2 items-center text-xl focus:outline-none"
+                                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                        aria-controls="password"
+                                        aria-pressed={showPassword}
+                                        title={showPassword ? 'Hide password' : 'Show password'}
+                                    >
+                                        {showPassword ? '🙈' : '👁️'}
+                                    </button>
+                                </div>
+                                <InputError message={errors.password} />
                             </div>
 
                             <div className="flex items-center space-x-3">
-                                <Checkbox
-                                    id="remember"
-                                    name="remember"
-                                    tabIndex={3}
-                                />
+                                <Checkbox id="remember" name="remember" tabIndex={3} />
                                 <Label htmlFor="remember">Remember me</Label>
                             </div>
 
@@ -141,6 +139,14 @@ export default function Login({
                     {status}
                 </div>
             )}
+
+            {/* 💜  back Button (bottom-left corner) */}
+            <button
+                onClick={handleExit}
+                className="absolute bottom-6 left-6 bg-purple-600 text-white px-5 py-2 rounded-md shadow-md hover:bg-purple-700 transition"
+            >
+                Back
+            </button>
         </AuthLayout>
     );
 }

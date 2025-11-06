@@ -5,7 +5,7 @@ services:
     name: one11-capstone-app
 
     dockerfilePath: Dockerfile
-    port: 80
+    port: 8080
     plan: free
 
     envVars:

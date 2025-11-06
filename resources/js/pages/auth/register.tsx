@@ -28,6 +28,8 @@ export default function Register() {
         <AuthLayout
             title="Create an account"
             description="Enter your details below to create your account"
+            // ⭐ IDINAGDAG ANG BACKGROUND CLASS DITO
+            backgroundClass="bg-white bg-[url('/images/welcome-bg.jpg')] bg-cover bg-center"
         >
             <Head title="Register" />
             <Form
@@ -136,19 +138,19 @@ export default function Register() {
                             </div>
 
                              <div className="grid gap-2">
-                                <Label htmlFor="barangay_permit">Barangay Permit</Label>
-                                <Input
-                                    id="barangay_permit"
-                                    type="file"
-                                    name="barangay_permit"
-                                    accept="image/*"
-                                    required
-                                />
-                                <p className="text-xs text-muted-foreground">
-                                    Accepted formats: JPG, PNG (max 2 MB)
-                                </p>
-                                <InputError message={errors.barangay_permit} />
-                            </div>
+                                 <Label htmlFor="barangay_permit">Barangay Permit</Label>
+                                 <Input
+                                     id="barangay_permit"
+                                     type="file"
+                                     name="barangay_permit"
+                                     accept="image/*"
+                                     required
+                                 />
+                                 <p className="text-xs text-muted-foreground">
+                                     Accepted formats: JPG, PNG (max 2 MB)
+                                 </p>
+                                 <InputError message={errors.barangay_permit} />
+                             </div>
 
 
                             <Button

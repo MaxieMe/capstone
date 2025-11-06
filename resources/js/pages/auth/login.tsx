@@ -25,7 +25,7 @@ export default function Login({
 }: LoginProps) {
 
     const [showPassword, setShowPassword] = useState(false);
-    const [isFocused, setIsFocused] = useState(false);
+    // Ang isFocused ay hindi ginagamit, pero hinayaan ko na lang dito.
 
     const togglePasswordVisibility = () => {
         setShowPassword(prev => !prev);
@@ -35,6 +35,8 @@ export default function Login({
         <AuthLayout
             title="Log in to your account"
             description="Enter your email and password below to log in"
+            // ⭐ IDAGDAG ANG BACKGROUND CLASS DITO
+            backgroundClass="bg-white bg-[url('/images/welcome-bg.jpg')] bg-cover bg-center"
         >
             <Head title="Log in" />
 

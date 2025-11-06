@@ -22,11 +22,6 @@ export function UserInfo({
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                     <span className="truncate font-medium">Guest</span>
-                    {showEmail && (
-                        <span className="truncate text-xs text-muted-foreground">
-                            Not logged in
-                        </span>
-                    )}
                 </div>
             </>
         );

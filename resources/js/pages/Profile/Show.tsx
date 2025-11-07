@@ -116,14 +116,6 @@ export default function ProfileShow({ profile, pets }: PageProps) {
                 <span className="px-3 py-1 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 text-sm font-semibold">
                   {pets?.length ?? 0} posts
                 </span>
-                {isOwner && (
-                  <Link
-                    href={route('adoption.index')}
-                    className="px-3 py-1 rounded-full bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 text-sm font-semibold"
-                  >
-                    Manage adoptions
-                  </Link>
-                )}
               </div>
             </div>
 

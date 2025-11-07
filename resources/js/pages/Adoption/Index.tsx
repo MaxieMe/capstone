@@ -346,47 +346,12 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzg4ODgiIHN0cm9rZS13aWR0aD0iMC41Ii8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-30"></div>
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <div className="inline-flex items-center gap-2 bg-gradient-to-r from-violet-600 to-purple-600 text-white px-4 py-2 rounded-full text-sm font-semibold mb-6 shadow-lg">
-            <span className="text-xl">🐾</span>
-            <span>Find Your Perfect Companion</span>
-          </div>
 
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black bg-gradient-to-r from-violet-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-4">
-            Adopt a Furry Friend
+            Welcome to PetCare
           </h1>
 
-          <p className="text-lg sm:text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto mb-6">
-            Give a loving home to pets in need. Browse our available cats and dogs ready for adoption.
-          </p>
-
-          {/* Server-side search */}
-          <form onSubmit={doSearch} className="max-w-xl mx-auto flex gap-2">
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search pets by name..."
-              className="flex-1 px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 outline-none focus:border-violet-500"
-            />
-            <button className="px-5 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 text-white font-semibold">
-              Search
-            </button>
-          </form>
-
-          {/* Stats */}
-          <div className="mt-8 flex flex-wrap justify-center gap-6 sm:gap-8">
-            <div className="bg-white dark:bg-gray-800 rounded-2xl px-6 py-4 shadow-xl">
-              <div className="text-3xl font-black bg-gradient-to-r from-violet-600 to-purple-600 bg-clip-text text-transparent">
-                {filteredPets.length}
-              </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400 font-medium">Pets Visible</div>
-            </div>
-            <div className="bg-white dark:bg-gray-800 rounded-2xl px-6 py-4 shadow-xl">
-              <div className="text-3xl font-black bg-gradient-to-r from-pink-600 to-rose-600 bg-clip-text text-transparent">
-                {filteredPets.filter((p) => p.status === 'adopted').length}
-              </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400 font-medium">Happy Adoptions</div>
-            </div>
-          </div>
+    
         </div>
       </div>
 
@@ -765,22 +730,9 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                     {pet.pname}
                   </h3>
 
-                  <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-1">
-                    <span className="text-base">🎂</span>
-                    <span>{pet.age_text ?? ageText(pet.age, pet.age_unit)}</span>
-                    {(() => {
-                      const stage = pet.life_stage ?? computeLifeStage(pet.category, pet.age, pet.age_unit);
-                      return stage ? (
-                        <span className="px-2 py-0.5 bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 rounded-full text-xs font-semibold">
-                          {stage}
-                        </span>
-                      ) : null;
-                    })()}
-                  </div>
+                 
 
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mb-4">
-                    <span className="font-semibold">Breed:</span> {pet.breed || '—'}
-                  </div>
+                  
 
                   <div className="flex gap-2">
                     <Link

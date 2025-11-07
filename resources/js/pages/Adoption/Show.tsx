@@ -322,7 +322,7 @@ export default function Show({ pet }: { pet: Pet }) {
                         <span className="text-xl sm:text-2xl">📝</span>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm text-green-600 dark:text-green-400 font-semibold mb-2">About Me</p>
+                        <p className="text-xs sm:text-sm text-green-600 dark:text-green-400 font-semibold mb-2">Description</p>
                         <p className="text-sm sm:text-base text-gray-700 dark:text-gray-300 leading-relaxed">
                           {pet.description || 'No description provided.'}
                         </p>
@@ -509,9 +509,6 @@ export default function Show({ pet }: { pet: Pet }) {
             </div>
           </div>
         )}
-
-        {/* Other layout content can go here, such as footer, etc. */}
-
       </div>
     </AppLayout>
   );

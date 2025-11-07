@@ -10,6 +10,7 @@ import { register } from '@/routes';
 import { store } from '@/routes/login';
 import { request } from '@/routes/password';
 import { Form, Head, router } from '@inertiajs/react';
+import { Link } from '@inertiajs/react';
 import { useState } from 'react';
 
 interface LoginProps {

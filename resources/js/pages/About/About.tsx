@@ -2,7 +2,9 @@ import { Head, router } from '@inertiajs/react';
 
 export default function About() {
   const handleExit = () => {
-    router.visit('/profile'); // Redirect to Profile page
+    // FIX: Changed from router.visit('/profile') to window.history.back()
+    // This tells the browser to navigate to the previous URL in its history.
+    window.history.back(); 
   };
 
   return (
@@ -52,7 +54,7 @@ export default function About() {
 
           {/* Back button inside the container */}
           <button
-            onClick={handleExit}
+            onClick={handleExit} // This now correctly calls window.history.back()
             className="mt-6 bg-purple-600 text-white px-5 py-2 rounded-md shadow-md hover:bg-purple-700 transition"
           >
             Back

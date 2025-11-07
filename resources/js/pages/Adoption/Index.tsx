@@ -209,7 +209,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
               <span>Browse Users with Available Pets</span>
             </div>
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black bg-gradient-to-r from-violet-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-              Guest Directory
+             Welcome to PetCare
             </h1>
 
             {/* Search users */}
@@ -787,7 +787,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                       href={route('adoption.show', pet.id)}
                       className="flex-1 text-center bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white font-semibold py-2.5 px-4 rounded-xl transition-all shadow-md hover:shadow-lg"
                     >
-                      View Details
+                      About me
                     </Link>
 
                     {!isAuthenticated && (pet.user?.name || pet.user?.name) && (

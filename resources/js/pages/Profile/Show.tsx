@@ -140,7 +140,7 @@ export default function ProfileShow({ profile, pets }: PageProps) {
             onClick={(e) => e.preventDefault()}
                 className="inline-flex items-center gap-2 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white font-semibold px-4 py-2 rounded-xl transition-colors"
               >
-                Contact
+                Sponsor
               </a>
             </div>
           </div>
@@ -285,7 +285,7 @@ export default function ProfileShow({ profile, pets }: PageProps) {
                       href={route('adoption.show', pet.id)}
                       className="flex-1 text-center bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white font-semibold py-2.5 px-4 rounded-xl transition-all shadow-md hover:shadow-lg"
                     >
-                      View Details
+                      About me
                     </Link>
                     <Link
                       href={route('adoption.index')}

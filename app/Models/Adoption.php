@@ -39,7 +39,6 @@ class Adoption extends Model
 
     public function inquiries(): HasMany
     {
-        // DITO: Model, hindi mail
         return $this->hasMany(AdoptionInquiry::class);
     }
 

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class AdoptionInquiry extends Model
 {
@@ -15,22 +16,18 @@ class AdoptionInquiry extends Model
         'requester_name',
         'requester_email',
         'requester_phone',
-        'visit_at',        // ✅ bagong field
-        'meetup_location', // ✅ bagong field
+        'visit_at',
+        'meetup_location',
         'message',
         'status',
     ];
 
-    protected $casts = [
-        'visit_at' => 'datetime',
-    ];
-
-    public function adoption()
+    public function adoption(): BelongsTo
     {
         return $this->belongsTo(Adoption::class);
     }
 
-    public function requester()
+    public function requester(): BelongsTo
     {
         return $this->belongsTo(User::class, 'requester_id');
     }

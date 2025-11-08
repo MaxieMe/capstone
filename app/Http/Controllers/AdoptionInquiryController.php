@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Adoption;
 use App\Models\AdoptionInquiry;
-use App\Mail\PetAdoptionInquiryMail; // <-- Tiyakin na ito ang ginagamit
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 
@@ -13,52 +12,109 @@ class AdoptionInquiryController extends Controller
     public function store(Request $request, Adoption $adoption)
     {
         // Only available posts can be inquired
-        abort_unless($adoption->status === 'available', 400, 'This pet is not open for inquiries.');
+        abort_unless(
+            $adoption->status === 'available',
+            400,
+            'This pet is not open for inquiries.'
+        );
 
+        // Validate incoming form (galing sa React modal mo)
         $validated = $request->validate([
-            'name'    => ['required','string','max:120'],
-            'email'   => ['required','email','max:180'],
-            'phone'   => ['nullable','string','max:60'],
-            'message' => ['nullable','string','max:2000'],
+            'name'            => ['required', 'string', 'max:120'],
+            'email'           => ['required', 'email', 'max:180'],
+            'phone'           => ['nullable', 'string', 'max:60'],
+
+            'visit_at'        => ['required', 'date'],
+            'meetup_location' => ['required', 'string', 'max:255'],
+
+            'message'         => ['nullable', 'string', 'max:2000'],
         ]);
 
-        // 1. Create the Inquiry Record
+        // Save inquiry sa DB
         $inq = AdoptionInquiry::create([
-            'adoption_id'    => $adoption->id,
-            'requester_id'   => optional($request->user())->id,
-            'requester_name' => (string) $validated['name'],
-            'requester_email'=> (string) $validated['email'],
-            'requester_phone'=> $validated['phone'] ?? null,
-            'message'        => $validated['message'] ?? null,
-            'status'         => 'submitted',
+            'adoption_id'     => $adoption->id,
+            'requester_id'    => optional($request->user())->id,
+            'requester_name'  => $validated['name'],
+            'requester_email' => $validated['email'],
+            'requester_phone' => $validated['phone'] ?? null,
+            'visit_at'        => $validated['visit_at'],
+            'meetup_location' => $validated['meetup_location'],
+            'message'         => $validated['message'] ?? null,
+            'status'          => 'submitted',
         ]);
 
-        // 2. Move pet to pending so it disappears from public list
+        // Gawing pending yung pet
         $adoption->status = 'pending';
         $adoption->save();
 
-        // 3. Notify owner using the Mailable Class
-        try {
-            $owner = $adoption->user;
-            if ($owner && $owner->email) {
-                // ITO ANG GUMAGAMIT NG PetAdoptionInquiryMail Mailable
-                Mail::to($owner->email)->send(new PetAdoptionInquiryMail(
-                    adoption: $adoption,
-                    fromName: (string) $inq->requester_name,
-                    fromEmail: (string) $inq->requester_email,
-                    fromPhone: $inq->requester_phone, // Ok lang na maging NULL
-                    bodyMessage: (string) ($inq->message ?? 'No message provided.') // Tiniyak na may default string
-                ));
-            } else {
-                // Kung walang owner email, i-log ito para sa debugging
-                \Log::warning('Adoption inquiry failed: Owner email missing for Adoption ID: ' . $adoption->id);
-            }
-        } catch (\Throwable $e) {
-            // Kung may error sa pagpapadala (e.g., Brevo connection error), i-log ang detalye.
-            \Log::error('Adoption Inquiry Mail Sending Failed: ' . $e->getMessage());
-            // Optional: Maaari kang mag-return ng error dito kung ayaw mo magpatuloy kapag hindi na-send ang email.
+        $owner = $adoption->user;
+
+        /*
+        |--------------------------------------------------------------------------
+        | 1) EMAIL SA OWNER (RECEIVER)
+        |--------------------------------------------------------------------------
+        */
+        if ($owner && $owner->email) {
+            Mail::raw(
+                "Hello {$owner->name},\n\n" .
+                "Someone is interested in adopting your pet \"{$adoption->pname}\".\n\n" .
+                "Requester details:\n" .
+                "Name:  {$inq->requester_name}\n" .
+                "Email: {$inq->requester_email}\n" .
+                ($inq->requester_phone ? "Phone: {$inq->requester_phone}\n" : "") .
+                "\nVisit details:\n" .
+                "Date & Time:     {$inq->visit_at}\n" .
+                "Meetup location: {$inq->meetup_location}\n\n" .
+                "Message:\n" . ($inq->message ?: 'No additional message.') . "\n\n" .
+                "Please reach out to the requester to proceed.\n",
+                function ($m) use ($owner, $adoption, $inq) {
+                    $m->to($owner->email)
+                      ->subject("Adoption Inquiry: {$adoption->pname}")
+                      ->replyTo($inq->requester_email, $inq->requester_name);
+                }
+            );
         }
 
-        return back()->with('success', 'Inquiry sent to the owner. The post is now pending.');
+        /*
+        |--------------------------------------------------------------------------
+        | 2) EMAIL SA SENDER (CONFIRMATION)
+        |--------------------------------------------------------------------------
+        */
+        $senderEmail = $validated['email'];
+        $senderName  = $validated['name'];
+
+        Mail::raw(
+            "Hello {$senderName},\n\n" .
+            "We received your adoption inquiry for \"{$adoption->pname}\".\n\n" .
+            "Here is a summary of your submission:\n\n" .
+            "Pet details:\n" .
+            "- Name: {$adoption->pname}\n" .
+            "- Category: {$adoption->category}\n" .
+            "- Breed: " . ($adoption->breed ?: 'N/A') . "\n\n" .
+
+            "Your details:\n" .
+            "- Email: {$senderEmail}\n" .
+            "- Phone: " . ($validated['phone'] ?? 'N/A') . "\n\n" .
+
+            "Visit details:\n" .
+            "- Date & Time:     {$validated['visit_at']}\n" .
+            "- Meetup location: {$validated['meetup_location']}\n\n" .
+
+            "Your message:\n" .
+            ($validated['message'] ?? 'No additional message.') . "\n\n" .
+
+            "The owner will contact you soon regarding your inquiry.\n" .
+            "Thank you for your interest in adopting!\n\n" .
+            "--\nPetCare Team\n",
+            function ($m) use ($senderEmail, $senderName, $adoption) {
+                $m->to($senderEmail, $senderName)
+                  ->subject("We received your inquiry for {$adoption->pname}");
+            }
+        );
+
+        return back()->with(
+            'success',
+            'Inquiry sent to the owner. We also emailed you a confirmation. The post is now pending.'
+        );
     }
 }

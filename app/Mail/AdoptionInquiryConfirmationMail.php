@@ -8,7 +8,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
 
-class AdoptionInquiryMail extends Mailable implements ShouldQueue
+class AdoptionInquiryConfirmationMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
@@ -19,8 +19,7 @@ class AdoptionInquiryMail extends Mailable implements ShouldQueue
 
     public function build()
     {
-        return $this->subject("Adoption inquiry: {$this->adoption->pname}")
-            ->replyTo($this->data['email'], $this->data['name'])
-            ->text('emails.adoption_inquiry_plain');
+        return $this->subject("We received your inquiry for {$this->adoption->pname}")
+            ->text('emails.adoption_inquiry_confirmation_plain');
     }
 }

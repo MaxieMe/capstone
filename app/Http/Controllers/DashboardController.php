@@ -50,7 +50,7 @@ class DashboardController extends Controller
             ->select('id', 'pname', 'status', 'created_at', 'user_id', 'image_path')
             ->with(['user:id,name'])
             ->latest()
-            ->limit(8)
+            ->limit(3)
             ->get()
             ->map(function ($a) {
                 $a->image_url = $a->image_path ? Storage::url($a->image_path) : null;

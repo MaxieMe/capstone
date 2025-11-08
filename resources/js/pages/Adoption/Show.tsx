@@ -1,5 +1,5 @@
 import AppLayout from '@/layouts/app-layout';
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import React, { useMemo, useState } from 'react';
 import { route } from 'ziggy-js';
 
@@ -65,6 +65,11 @@ function computeLifeStage(category?: string | null, age?: number | null, unit?: 
 const getName = (u?: ProfileUser | null) => (u?.name && u.name.trim()) || '';
 
 export default function Show({ pet }: { pet: Pet }) {
+  // ====== Auth / Ownership ======
+  const { props } = usePage();
+  const currentUserId = (props as any)?.auth?.user?.id as number | undefined;
+  const isOwner = !!currentUserId && pet.user?.id === currentUserId;
+
   // ====== State for Inquiry modal ======
   const [isInquiryOpen, setInquiryOpen] = useState(false);
   const {
@@ -211,7 +216,6 @@ export default function Show({ pet }: { pet: Pet }) {
               {/* Image Section */}
               <div className="relative bg-gradient-to-br from-violet-100 via-purple-100 to-pink-100 dark:from-gray-700 dark:via-purple-900/30 dark:to-gray-700 p-6 sm:p-8 lg:p-10 flex items-center justify-center min-h-[400px] lg:min-h-[600px]">
                 {/* Decorative overlays */}
-                {/* ... */}
                 <div className="absolute top-10 left-10 w-32 h-32 bg-pink-300 dark:bg-pink-600 rounded-full opacity-30 blur-2xl"></div>
                 <div className="absolute bottom-10 right-10 w-40 h-40 bg-purple-300 dark:bg-purple-600 rounded-full opacity-30 blur-2xl"></div>
                 {/* Pet Image */}
@@ -331,26 +335,28 @@ export default function Show({ pet }: { pet: Pet }) {
                   </div>
                 </div>
 
-                {/* Call to Action Buttons */}
-                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-6">
-                  <button
-                    onClick={() => setInquiryOpen(true)}
-                    className="flex-1 text-center bg-gradient-to-r from-blue-500 to-blue-500 hover:from-blue-600 hover:to-blue-600 text-white font-bold px-6 sm:px-8 py-3 sm:py-4 rounded-2xl transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-105"
-                  >
-                    Adopt me
-                  </button>
-                  {pet.status === 'available' && (
+                {/* Call to Action Buttons (hidden if owner) */}
+                {!isOwner && (
+                  <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-6">
                     <button
-                      onClick={() => setSponsorshipOpen(true)}
-                      className="flex-1 text-center bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white font-bold px-6 sm:px-8 py-3 sm:py-4 rounded-2xl transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-105"
+                      onClick={() => setInquiryOpen(true)}
+                      className="flex-1 text-center bg-gradient-to-r from-blue-500 to-blue-500 hover:from-blue-600 hover:to-blue-600 text-white font-bold px-6 sm:px-8 py-3 sm:py-4 rounded-2xl transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-105"
                     >
-                      Sponsor me
+                      Adopt me
                     </button>
-                  )}
-                </div>
+                    {pet.status === 'available' && (
+                      <button
+                        onClick={() => setSponsorshipOpen(true)}
+                        className="flex-1 text-center bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white font-bold px-6 sm:px-8 py-3 sm:py-4 rounded-2xl transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-105"
+                      >
+                        Sponsor me
+                      </button>
+                    )}
+                  </div>
+                )}
 
-                {/* Info Box for Adoption Ready */}
-                {pet.status === 'available' && (
+                {/* Info Box for Adoption Ready — ONLY when NOT owner */}
+                {!isOwner && pet.status === 'available' && (
                   <div className="mt-6 sm:mt-8 p-4 bg-violet-50 dark:bg-violet-900/20 rounded-2xl border-2 border-violet-200 dark:border-violet-800">
                     <div className="flex items-start gap-3">
                       <div className="w-6 h-6 flex items-center justify-center bg-violet-200 dark:bg-violet-800 rounded-lg flex-shrink-0">

@@ -53,6 +53,7 @@ class RoleController extends Controller
 
     /**
      * Reject (delete) a user (Admin or Superadmin only).
+     * Usually for pending users.
      */
     public function reject(User $user)
     {
@@ -93,12 +94,44 @@ class RoleController extends Controller
 
         return redirect()->route('admin.users')->with('success', "{$user->name} updated successfully!");
     }
+
+    /**
+     * Superadmin view.
+     */
     public function superadmin()
-{
-    return Inertia::render('SuperAdmin/System', [
-        'auth' => [
-            'user' => auth()->user(),
-        ],
-    ]);
-}
+    {
+        return Inertia::render('SuperAdmin/System', [
+            'auth' => [
+                'user' => auth()->user(),
+            ],
+        ]);
+    }
+
+    /**
+     * Permanently delete a user (Superadmin only, separate from reject).
+     */
+    public function destroy(Request $request, User $user)
+    {
+        $auth = $request->user();
+
+        // Only superadmin can hard-delete users (pwede mo palitan kung gusto mo i-allow admin)
+        if (!$auth || $auth->role !== 'superadmin') {
+            abort(403, 'You are not allowed to delete users.');
+        }
+
+        // Huwag payagan burahin ang sarili
+        if ($auth->id === $user->id) {
+            return back()->with('error', 'You cannot delete your own account.');
+        }
+
+        // Optional: huwag payagan mag-delete ng ibang superadmin
+        if ($user->role === 'superadmin') {
+            return back()->with('error', 'You cannot delete another superadmin.');
+        }
+
+        $name = $user->name;
+        $user->delete();
+
+        return back()->with('success', "{$name} has been deleted successfully.");
+    }
 }

@@ -11,7 +11,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { type BreadcrumbItem } from "@/types";
-import { Users as UsersIcon, Mail, Shield, Image as ImageIcon, CheckCircle, Clock, Edit, Check, X } from "lucide-react";
+import {
+  Users as UsersIcon,
+  Mail,
+  Shield,
+  Image as ImageIcon,
+  CheckCircle,
+  Clock,
+  Edit,
+  Check,
+  X,
+  Trash2,
+} from "lucide-react";
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: "Manage Users", href: "/users" }];
 
@@ -21,7 +32,7 @@ interface User {
   email: string;
   role: "user" | "admin" | "superadmin";
   barangay_permit: string | null;
-  is_approved: boolean;
+  is_approved: boolean | number; // allow 0/1 or true/false
 }
 
 interface Paginated<T> {
@@ -34,15 +45,32 @@ export default function Users() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [form, setForm] = useState({ name: "", email: "", role: "user" });
 
-  // Approve / Reject handlers
+  /* ===================== Permissions ===================== */
+  const canEditAnything = auth.user.role === "superadmin";
+
+  /* ===================== Approve / Reject ===================== */
   const handleApprove = (id: number) => {
     router.post(`/users/${id}/approve`, {}, { preserveScroll: true });
   };
+
   const handleReject = (id: number) => {
+    if (!window.confirm("Are you sure you want to reject this user?")) return;
     router.post(`/users/${id}/reject`, {}, { preserveScroll: true });
   };
 
-  // Edit modal
+  /* ===================== Delete User ===================== */
+  const handleDelete = (id: number) => {
+    if (!window.confirm("Are you sure you want to permanently delete this user?")) return;
+
+    router.delete(`/users/${id}`, {
+      preserveScroll: true,
+      onSuccess: () => {
+        router.reload({ only: ["users"] });
+      },
+    });
+  };
+
+  /* ===================== Edit Modal ===================== */
   const openEdit = (user: User) => {
     setEditingUser(user);
     setForm({ name: user.name, email: user.email, role: user.role });
@@ -62,7 +90,7 @@ export default function Users() {
     });
   };
 
-  // Role Badge Component
+  /* ===================== Badges ===================== */
   const RoleBadge = ({ role }: { role: User["role"] }) => {
     const styles =
       role === "superadmin"
@@ -78,7 +106,6 @@ export default function Users() {
     );
   };
 
-  // Status Badge Component
   const StatusBadge = ({ approved }: { approved: boolean }) => {
     return approved ? (
       <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-emerald-500/10 text-emerald-400 ring-1 ring-inset ring-emerald-400/20">
@@ -92,8 +119,6 @@ export default function Users() {
       </span>
     );
   };
-
-  const canEditAnything = auth.user.role === "superadmin";
 
   return (
     <AppLayout breadcrumbs={breadcrumbs}>
@@ -130,7 +155,7 @@ export default function Users() {
           </div>
         ) : (
           <>
-            {/* Desktop/Tablet Table View (hidden on mobile) */}
+            {/* Desktop/Tablet Table View */}
             <div className="hidden md:block overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
               <table className="w-full border-collapse text-left text-sm">
                 <thead className="sticky top-0 z-10">
@@ -147,18 +172,24 @@ export default function Users() {
 
                 <tbody>
                   {users.data.map((user) => {
+                    const isApproved = !!user.is_approved;
+
                     const canApproveReject =
                       ["admin", "superadmin"].includes(auth.user.role) &&
-                      !user.is_approved &&
+                      !isApproved &&
                       user.id !== auth.user.id;
 
-                    const canEdit = canEditAnything;
+                    const canEdit = canEditAnything && isApproved;
+                    const canDelete =
+                      canEditAnything &&
+                      isApproved &&
+                      user.id !== auth.user.id;
 
                     return (
                       <tr
                         key={user.id}
                         className={`border-b border-border transition-colors ${
-                          !user.is_approved
+                          !isApproved
                             ? "bg-amber-50/60 dark:bg-amber-950/20"
                             : "hover:bg-muted/50"
                         }`}
@@ -204,7 +235,7 @@ export default function Users() {
                           )}
                         </td>
                         <td className="p-4 align-middle text-center">
-                          <StatusBadge approved={user.is_approved} />
+                          <StatusBadge approved={isApproved} />
                         </td>
                         <td className="p-4 align-middle">
                           <div className="flex flex-wrap items-center justify-center gap-2">
@@ -240,8 +271,21 @@ export default function Users() {
                               </Button>
                             )}
 
-                            {!canApproveReject && !canEdit && (
-                              <span className="text-xs text-muted-foreground italic">No actions</span>
+                            {canDelete && (
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => handleDelete(user.id)}
+                              >
+                                <Trash2 className="w-4 h-4 mr-1" />
+                                Delete
+                              </Button>
+                            )}
+
+                            {!canApproveReject && !canEdit && !canDelete && (
+                              <span className="text-xs text-muted-foreground italic">
+                                No actions
+                              </span>
                             )}
                           </div>
                         </td>
@@ -255,18 +299,24 @@ export default function Users() {
             {/* Mobile Card View */}
             <div className="md:hidden space-y-4">
               {users.data.map((user) => {
+                const isApproved = !!user.is_approved;
+
                 const canApproveReject =
                   ["admin", "superadmin"].includes(auth.user.role) &&
-                  !user.is_approved &&
+                  !isApproved &&
                   user.id !== auth.user.id;
 
-                const canEdit = canEditAnything;
+                const canEdit = canEditAnything && isApproved;
+                const canDelete =
+                  canEditAnything &&
+                  isApproved &&
+                  user.id !== auth.user.id;
 
                 return (
                   <div
                     key={user.id}
                     className={`rounded-xl border border-border bg-card p-4 shadow-sm transition-all ${
-                      !user.is_approved
+                      !isApproved
                         ? "bg-amber-50/60 dark:bg-amber-950/20 ring-2 ring-amber-500/20"
                         : ""
                     }`}
@@ -278,7 +328,7 @@ export default function Users() {
                           <span className="font-mono text-xs bg-muted px-2 py-0.5 rounded">
                             #{user.id}
                           </span>
-                          <StatusBadge approved={user.is_approved} />
+                          <StatusBadge approved={isApproved} />
                         </div>
                         <h3 className="font-semibold text-base truncate">{user.name}</h3>
                         <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1 truncate">
@@ -344,7 +394,19 @@ export default function Users() {
                         </Button>
                       )}
 
-                      {!canApproveReject && !canEdit && (
+                      {canDelete && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="flex-1"
+                          onClick={() => handleDelete(user.id)}
+                        >
+                          <Trash2 className="w-4 h-4 mr-1" />
+                          Delete
+                        </Button>
+                      )}
+
+                      {!canApproveReject && !canEdit && !canDelete && (
                         <span className="text-xs text-muted-foreground italic w-full text-center py-2">
                           No actions available
                         </span>

@@ -19,17 +19,13 @@ use Inertia\Inertia;
 Route::get('/', fn() => Inertia::render('welcome'))->name('home');
 Route::get('/about', fn() => Inertia::render('About/About'))->name('about');
 
+/* Adoption - public can browse */
 Route::get('/adoption', [AdoptionController::class, 'index'])->name('adoption.index');
 Route::get('/adoption/{adoption}', [AdoptionController::class, 'show'])->name('adoption.show');
+
 Route::post('/adoption/{adoption}/contact', [AdoptionContactController::class, 'send'])
     ->name('adoption.contact')
     ->middleware('throttle:5,1');
-        Route::post('/adoption', [AdoptionController::class, 'store'])->name('adoption.store');
-
-        Route::post('/adoption/{adoption}/inquire', [AdoptionInquiryController::class, 'store'])->name('adoption.inquire');
-    Route::post('/adoption/{adoption}/mark-adopted', [AdoptionController::class, 'markAdopted'])->name('adoption.markAdopted');
-    Route::delete('/adoption/{adoption}', [AdoptionController::class, 'destroy'])->name('adoption.destroy');
-
 
 Route::get('/profile/{name}', [ProfileController::class, 'show'])->name('profile.show');
 
@@ -46,7 +42,15 @@ Route::middleware(['auth'])->get('/pending', fn () => Inertia::render('auth/Pend
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth', 'verified', 'approved'])->group(function () {
+
+    // Profile
     Route::get('/profile', [ProfileController::class, 'index'])->name('profile.index');
+
+    // Adoption actions (only logged-in & approved)
+    Route::post('/adoption', [AdoptionController::class, 'store'])->name('adoption.store');
+    Route::post('/adoption/{adoption}/inquire', [AdoptionInquiryController::class, 'store'])->name('adoption.inquire');
+    Route::post('/adoption/{adoption}/mark-adopted', [AdoptionController::class, 'markAdopted'])->name('adoption.markAdopted');
+    Route::delete('/adoption/{adoption}', [AdoptionController::class, 'destroy'])->name('adoption.destroy');
 });
 
 /*
@@ -61,8 +65,9 @@ Route::middleware(['auth', 'verified', 'approved', 'role:admin,superadmin'])->gr
     Route::post('/users/{user}/approve', [RoleController::class, 'approve'])->name('admin.users.approve');
     Route::post('/users/{user}/reject', [RoleController::class, 'reject'])->name('admin.users.reject');
     Route::put('/users/{user}', [RoleController::class, 'update'])->name('admin.users.update');
+    Route::delete('/users/{user}', [RoleController::class, 'destroy'])->name('admin.users.destroy');
 
-   Route::get('/manage', [ManageController::class, 'index'])->name('manage.index');
+    Route::get('/manage', [ManageController::class, 'index'])->name('manage.index');
 });
 
 /*

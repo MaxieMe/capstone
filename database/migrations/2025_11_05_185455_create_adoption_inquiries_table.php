@@ -14,16 +14,19 @@ return new class extends Migration
                 $table->id();
                 $table->foreignId('adoption_id')->constrained('adoptions')->cascadeOnDelete();
 
-                // requester (the adopter) – nullable user_id (in case guest or different email)
-                $table->foreignId('requester_id')->nullable()->constrained('users')->nullOnDelete();
+                $table->foreignId('requester_id')->nullable()
+                    ->constrained('users')->nullOnDelete();
 
                 $table->string('requester_name');
                 $table->string('requester_email');
                 $table->string('requester_phone')->nullable();
 
+                // NEW: fields galing sa improved modal
+                $table->dateTime('visit_at');
+                $table->string('meetup_location');
+
                 $table->text('message')->nullable();
 
-                // status: submitted|sent|read|closed (keep it flexible)
                 $table->string('status', 20)->default('submitted')->index();
 
                 $table->timestamps();
@@ -35,10 +38,12 @@ return new class extends Migration
         // If table exists, make sure the required columns also exist
         Schema::table('adoption_inquiries', function (Blueprint $table) {
             if (!Schema::hasColumn('adoption_inquiries', 'adoption_id')) {
-                $table->foreignId('adoption_id')->after('id')->constrained('adoptions')->cascadeOnDelete();
+                $table->foreignId('adoption_id')->after('id')
+                    ->constrained('adoptions')->cascadeOnDelete();
             }
             if (!Schema::hasColumn('adoption_inquiries', 'requester_id')) {
-                $table->foreignId('requester_id')->nullable()->after('adoption_id')->constrained('users')->nullOnDelete();
+                $table->foreignId('requester_id')->nullable()->after('adoption_id')
+                    ->constrained('users')->nullOnDelete();
             }
             if (!Schema::hasColumn('adoption_inquiries', 'requester_name')) {
                 $table->string('requester_name')->after('requester_id');
@@ -49,8 +54,17 @@ return new class extends Migration
             if (!Schema::hasColumn('adoption_inquiries', 'requester_phone')) {
                 $table->string('requester_phone')->nullable()->after('requester_email');
             }
+
+            // dito natin hinahabol yung bagong fields
+            if (!Schema::hasColumn('adoption_inquiries', 'visit_at')) {
+                $table->dateTime('visit_at')->after('requester_phone');
+            }
+            if (!Schema::hasColumn('adoption_inquiries', 'meetup_location')) {
+                $table->string('meetup_location')->after('visit_at');
+            }
+
             if (!Schema::hasColumn('adoption_inquiries', 'message')) {
-                $table->text('message')->nullable()->after('requester_phone');
+                $table->text('message')->nullable()->after('meetup_location');
             }
             if (!Schema::hasColumn('adoption_inquiries', 'status')) {
                 $table->string('status', 20)->default('submitted')->after('message');
@@ -61,15 +75,12 @@ return new class extends Migration
 
     public function down(): void
     {
-        // Sa down, huwag natin i-drop agad ang buong table kung ayaw mo ma-wipe data.
-        // Pero kung gusto mong clean rollback, uncomment the next line:
-        // Schema::dropIfExists('adoption_inquiries');
-
-        // Or minimal cleanup: drop added columns (optional)
         if (Schema::hasTable('adoption_inquiries')) {
             Schema::table('adoption_inquiries', function (Blueprint $table) {
-                // no-op (safe down). Customize if you need strict rollback.
+                // no-op for now
             });
         }
+        // or kung gusto mo talaga i-drop:
+        // Schema::dropIfExists('adoption_inquiries');
     }
 };

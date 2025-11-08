@@ -70,7 +70,7 @@ export default function Show({ pet }: { pet: Pet }) {
   const currentUserId = (props as any)?.auth?.user?.id as number | undefined;
   const isOwner = !!currentUserId && pet.user?.id === currentUserId;
 
-  // ====== State for Inquiry modal ======
+  // ====== State for Adoption Inquiry modal (IMPROVED FORM) ======
   const [isInquiryOpen, setInquiryOpen] = useState(false);
   const {
     data: inquiryData,
@@ -83,7 +83,9 @@ export default function Show({ pet }: { pet: Pet }) {
     name: '',
     email: '',
     phone: '',
-    message: '',
+    visit_at: '',          // datetime-local (Date of Visitation and Time)
+    meetup_location: '',   // Meet up or location
+    message: '',           // optional notes
   });
 
   // ====== State for Sponsorship modal ======
@@ -106,6 +108,7 @@ export default function Show({ pet }: { pet: Pet }) {
   const handleInquirySubmit = (e: React.FormEvent) => {
     e.preventDefault();
     postInquiry(route('adoption.inquire', pet.id), {
+      preserveScroll: true,
       onSuccess: () => {
         resetInquiry();
         setInquiryOpen(false);
@@ -147,6 +150,12 @@ export default function Show({ pet }: { pet: Pet }) {
       ? 'bg-gray-500'
       : 'bg-slate-400';
 
+  // Dynamic icon based on category
+  const categoryIcon =
+    (pet.category || '').toLowerCase() === 'cat'
+      ? '🐱'
+      : '🐶';
+
   return (
     <AppLayout
       breadcrumbs={[
@@ -157,8 +166,6 @@ export default function Show({ pet }: { pet: Pet }) {
       <Head title={`${pet.pname} - Available for Adoption`} />
 
       <div className="min-h-screen bg-gradient-to-br from-violet-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-purple-900/20 dark:to-gray-900 relative overflow-hidden">
-        {/* Decorative background elements could go here */}
-
         {/* Status badge */}
         <div className="absolute top-4 sm:top-6 right-4 sm:right-6 z-20">
           {pet.status === 'adopted' && (
@@ -215,10 +222,8 @@ export default function Show({ pet }: { pet: Pet }) {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 bg-white dark:bg-gray-800 rounded-3xl shadow-2xl overflow-hidden">
               {/* Image Section */}
               <div className="relative bg-gradient-to-br from-violet-100 via-purple-100 to-pink-100 dark:from-gray-700 dark:via-purple-900/30 dark:to-gray-700 p-6 sm:p-8 lg:p-10 flex items-center justify-center min-h-[400px] lg:min-h-[600px]">
-                {/* Decorative overlays */}
                 <div className="absolute top-10 left-10 w-32 h-32 bg-pink-300 dark:bg-pink-600 rounded-full opacity-30 blur-2xl"></div>
                 <div className="absolute bottom-10 right-10 w-40 h-40 bg-purple-300 dark:bg-purple-600 rounded-full opacity-30 blur-2xl"></div>
-                {/* Pet Image */}
                 <div className="relative z-10 w-full h-full flex items-center justify-center">
                   <img
                     src={safeImage}
@@ -289,7 +294,7 @@ export default function Show({ pet }: { pet: Pet }) {
                   {/* Breed */}
                   <div className="group flex items-center gap-3 sm:gap-4 p-3 sm:p-4 bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-gray-700 dark:to-indigo-900/30 rounded-2xl transition-all hover:shadow-lg">
                     <div className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center bg-indigo-200 dark:bg-indigo-700 rounded-xl group-hover:scale-110 transition-transform">
-                      <span className="text-xl sm:text-2xl">🐶</span>
+                      <span className="text-xl sm:text-2xl">{categoryIcon}</span>
                     </div>
                     <div className="flex-1">
                       <p className="text-xs sm:text-sm text-indigo-600 dark:text-indigo-400 font-semibold">Breed</p>
@@ -380,7 +385,7 @@ export default function Show({ pet }: { pet: Pet }) {
           </div>
         </div>
 
-        {/* ===== Modal: Adoption Inquiry ===== */}
+        {/* ===== Modal: Adoption Inquiry (IMPROVED) ===== */}
         {isInquiryOpen && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
             <div className="w-full max-w-md rounded-2xl bg-white dark:bg-gray-800 p-6">
@@ -390,47 +395,101 @@ export default function Show({ pet }: { pet: Pet }) {
                   ✕
                 </button>
               </div>
+
               <form onSubmit={handleInquirySubmit} className="space-y-3">
+                {/* Your Name */}
                 <div>
                   <label className="text-sm">Your Name</label>
                   <input
                     className="mt-1 w-full rounded-lg border px-3 py-2"
+                    placeholder="Juan Dela Cruz"
                     value={inquiryData.name}
                     onChange={(e) => setInquiryData('name', e.target.value)}
                     required
                   />
-                  {inquiryErrors.name && <div className="text-xs text-rose-600 mt-1">{inquiryErrors.name}</div>}
+                  {inquiryErrors.name && (
+                    <div className="text-xs text-rose-600 mt-1">{inquiryErrors.name}</div>
+                  )}
                 </div>
+
+                {/* Your Email */}
                 <div>
                   <label className="text-sm">Your Email</label>
                   <input
                     type="email"
                     className="mt-1 w-full rounded-lg border px-3 py-2"
+                    placeholder="you@example.com"
                     value={inquiryData.email}
                     onChange={(e) => setInquiryData('email', e.target.value)}
                     required
                   />
-                  {inquiryErrors.email && <div className="text-xs text-rose-600 mt-1">{inquiryErrors.email}</div>}
+                  {inquiryErrors.email && (
+                    <div className="text-xs text-rose-600 mt-1">{inquiryErrors.email}</div>
+                  )}
                 </div>
+
+                {/* Contact */}
                 <div>
-                  <label className="text-sm">Phone (optional)</label>
+                  <label className="text-sm">Contact</label>
                   <input
                     className="mt-1 w-full rounded-lg border px-3 py-2"
+                    placeholder="09xx-xxx-xxxx"
                     value={inquiryData.phone}
                     onChange={(e) => setInquiryData('phone', e.target.value)}
                   />
-                  {inquiryErrors.phone && <div className="text-xs text-rose-600 mt-1">{inquiryErrors.phone}</div>}
+                  {inquiryErrors.phone && (
+                    <div className="text-xs text-rose-600 mt-1">{inquiryErrors.phone}</div>
+                  )}
                 </div>
+
+                {/* Date of Visitation & Time */}
+                <div>
+                  <label className="text-sm">Date of Visitation and Time</label>
+                  <input
+                    type="datetime-local"
+                    className="mt-1 w-full rounded-lg border px-3 py-2"
+                    value={inquiryData.visit_at}
+                    onChange={(e) => setInquiryData('visit_at', e.target.value)}
+                    required
+                  />
+                  {inquiryErrors.visit_at && (
+                    <div className="text-xs text-rose-600 mt-1">{inquiryErrors.visit_at}</div>
+                  )}
+                </div>
+
+                {/* Meet up or location */}
+                <div>
+                  <label className="text-sm">Meet up or Location</label>
+                  <input
+                    className="mt-1 w-full rounded-lg border px-3 py-2"
+                    placeholder="Ex: SM Valenzuela, main entrance"
+                    value={inquiryData.meetup_location}
+                    onChange={(e) => setInquiryData('meetup_location', e.target.value)}
+                    required
+                  />
+                  {inquiryErrors.meetup_location && (
+                    <div className="text-xs text-rose-600 mt-1">
+                      {inquiryErrors.meetup_location}
+                    </div>
+                  )}
+                </div>
+
+                {/* Extra notes */}
                 <div>
                   <label className="text-sm">Message (optional)</label>
                   <textarea
                     className="mt-1 w-full rounded-lg border px-3 py-2"
                     rows={4}
+                    placeholder={`Any questions or requirements about meeting ${pet.pname}?`}
                     value={inquiryData.message}
                     onChange={(e) => setInquiryData('message', e.target.value)}
                   />
-                  {inquiryErrors.message && <div className="text-xs text-rose-600 mt-1">{inquiryErrors.message}</div>}
+                  {inquiryErrors.message && (
+                    <div className="text-xs text-rose-600 mt-1">{inquiryErrors.message}</div>
+                  )}
                 </div>
+
+                {/* Submit */}
                 <div className="pt-2 flex items-center justify-end gap-2">
                   <button
                     type="button"
@@ -439,10 +498,17 @@ export default function Show({ pet }: { pet: Pet }) {
                   >
                     Cancel
                   </button>
-                  <button disabled={inquiryProcessing} className="px-4 py-2 rounded-lg bg-violet-600 text-white">
+                  <button
+                    disabled={inquiryProcessing}
+                    className="px-4 py-2 rounded-lg bg-violet-600 text-white"
+                  >
                     {inquiryProcessing ? 'Sending…' : 'Send Inquiry'}
                   </button>
                 </div>
+
+                <p className="text-[11px] text-gray-500 mt-2">
+                  Tip: Bring a valid ID during visitation and arrive 10 minutes early. Thank you!
+                </p>
               </form>
             </div>
           </div>
@@ -454,7 +520,10 @@ export default function Show({ pet }: { pet: Pet }) {
             <div className="w-full max-w-md rounded-2xl bg-white dark:bg-gray-800 p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-bold">Sponsorship Inquiry</h2>
-                <button onClick={() => setSponsorshipOpen(false)} className="text-gray-500 hover:text-gray-700">
+                <button
+                  onClick={() => setSponsorshipOpen(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
                   ✕
                 </button>
               </div>
@@ -467,7 +536,11 @@ export default function Show({ pet }: { pet: Pet }) {
                     onChange={(e) => setSponsorshipData('name_s', e.target.value)}
                     required
                   />
-                  {sponsorshipErrors.name_s && <div className="text-xs text-rose-600 mt-1">{sponsorshipErrors.name_s}</div>}
+                  {sponsorshipErrors.name_s && (
+                    <div className="text-xs text-rose-600 mt-1">
+                      {sponsorshipErrors.name_s}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="text-sm">Your Email</label>
@@ -478,7 +551,11 @@ export default function Show({ pet }: { pet: Pet }) {
                     onChange={(e) => setSponsorshipData('email_s', e.target.value)}
                     required
                   />
-                  {sponsorshipErrors.email_s && <div className="text-xs text-rose-600 mt-1">{sponsorshipErrors.email_s}</div>}
+                  {sponsorshipErrors.email_s && (
+                    <div className="text-xs text-rose-600 mt-1">
+                      {sponsorshipErrors.email_s}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="text-sm">Phone (optional)</label>
@@ -487,7 +564,11 @@ export default function Show({ pet }: { pet: Pet }) {
                     value={sponsorshipData.phone_s}
                     onChange={(e) => setSponsorshipData('phone_s', e.target.value)}
                   />
-                  {sponsorshipErrors.phone_s && <div className="text-xs text-rose-600 mt-1">{sponsorshipErrors.phone_s}</div>}
+                  {sponsorshipErrors.phone_s && (
+                    <div className="text-xs text-rose-600 mt-1">
+                      {sponsorshipErrors.phone_s}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="text-sm">Message (optional)</label>
@@ -497,7 +578,11 @@ export default function Show({ pet }: { pet: Pet }) {
                     value={sponsorshipData.message_s}
                     onChange={(e) => setSponsorshipData('message_s', e.target.value)}
                   />
-                  {sponsorshipErrors.message_s && <div className="text-xs text-rose-600 mt-1">{sponsorshipErrors.message_s}</div>}
+                  {sponsorshipErrors.message_s && (
+                    <div className="text-xs text-rose-600 mt-1">
+                      {sponsorshipErrors.message_s}
+                    </div>
+                  )}
                 </div>
                 <div className="pt-2 flex items-center justify-end gap-2">
                   <button
@@ -507,7 +592,10 @@ export default function Show({ pet }: { pet: Pet }) {
                   >
                     Cancel
                   </button>
-                  <button disabled={sponsorshipProcessing} className="px-4 py-2 rounded-lg bg-violet-600 text-white">
+                  <button
+                    disabled={sponsorshipProcessing}
+                    className="px-4 py-2 rounded-lg bg-violet-600 text-white"
+                  >
                     {sponsorshipProcessing ? 'Sending…' : 'Send Inquiry'}
                   </button>
                 </div>

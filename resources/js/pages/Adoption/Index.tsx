@@ -92,19 +92,28 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
       .sort((a, b) => (new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime()));
   }, [list, isAuthenticated, activeCategory, activeGender]);
 
-  // post pet form
-  const { data, setData, post, processing, errors, reset, clearErrors } = useForm({
-    pname: '',
-    gender: '',
-    age: '',
-    age_unit: 'months' as 'months' | 'years',
-    category: '' as 'cat' | 'dog' | '',
-    breed: '',
-    color: '',
-    location: '',
-    description: '',
-    image: null as File | null,
-  });
+ const {
+  data,
+  setData,
+  post,
+  processing,
+  errors,
+  reset,
+  clearErrors,
+  transform,
+} = useForm({
+  pname: '',
+  gender: '',
+  age: '',
+  age_unit: 'months' as 'months' | 'years',
+  category: '' as 'cat' | 'dog' | '',
+  breed: '',
+  custom_breed: '', // ⬅️ NEW
+  color: '',
+  location: '',
+  description: '',
+  image: null as File | null,
+});
 
   const breedOptions = useMemo(() => {
     if (data.category === 'dog') return DOG_BREEDS;
@@ -113,9 +122,10 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
   }, [data.category]);
 
   useEffect(() => {
-    setData('breed', '');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.category]);
+  setData('breed', '');
+  setData('custom_breed', '');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [data.category]);
 
   const handleOpenModal = () => setShowModal(true);
   const handleCloseModal = () => {
@@ -125,12 +135,21 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
   };
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    post(route('adoption.store'), {
-      forceFormData: true,
-      onSuccess: () => handleCloseModal(),
-    });
-  };
+  e.preventDefault();
+
+  transform((formData) => ({
+    ...formData,
+    breed:
+      formData.breed === 'Other / Not Sure'
+        ? (formData as any).custom_breed || 'Other / Not Sure'
+        : formData.breed,
+  }));
+
+  post(route('adoption.store'), {
+    forceFormData: true,
+    onSuccess: () => handleCloseModal(),
+  });
+};
 
   // helpers
   const computeLifeStage = (category?: string, age?: number, unit?: string) => {
@@ -351,7 +370,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
             Welcome to PetCare
           </h1>
 
-    
+
         </div>
       </div>
 
@@ -440,38 +459,55 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
-              Breed <span className="text-red-500">*</span>
-            </label>
-            <select
-              name="breed"
-              value={data.breed}
-              onChange={(e) => setData('breed', e.target.value)}
-              disabled={!data.category}
-              className={`w-full px-4 py-3 rounded-xl border-2 ${
-                !data.category
-                  ? 'border-gray-200 dark:border-gray-700 opacity-70 cursor-not-allowed'
-                  : 'border-gray-200 dark:border-gray-600'
-              } bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none`}
-              required
-            >
-              {!data.category ? (
-                <option value="">Select pet type first</option>
-              ) : (
-                <>
-                  <option value="">
-                    {`Select ${data.category === 'dog' ? 'Dog' : 'Cat'} Breed`}
-                  </option>
-                  {(data.category === 'dog' ? DOG_BREEDS : CAT_BREEDS).map((b: string) => (
-                    <option key={b} value={b}>
-                      {b}
-                    </option>
-                  ))}
-                </>
-              )}
-            </select>
-            {errors.breed && <p className="text-red-500 text-xs mt-1">{errors.breed}</p>}
-          </div>
+  <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+    Breed <span className="text-red-500">*</span>
+  </label>
+  <select
+    name="breed"
+    value={data.breed}
+    onChange={(e) => setData('breed', e.target.value)}
+    disabled={!data.category}
+    className={`w-full px-4 py-3 rounded-xl border-2 ${
+      !data.category
+        ? 'border-gray-200 dark:border-gray-700 opacity-70 cursor-not-allowed'
+        : 'border-gray-200 dark:border-gray-600'
+    } bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none`}
+    required
+  >
+    {!data.category ? (
+      <option value="">Select pet type first</option>
+    ) : (
+      <>
+        <option value="">
+          {`Select ${data.category === 'dog' ? 'Dog' : 'Cat'} Breed`}
+        </option>
+        {(data.category === 'dog' ? DOG_BREEDS : CAT_BREEDS).map((b: string) => (
+          <option key={b} value={b}>
+            {b}
+          </option>
+        ))}
+      </>
+    )}
+  </select>
+  {errors.breed && <p className="text-red-500 text-xs mt-1">{errors.breed}</p>}
+
+  {/* Custom Breed input kapag "Other / Not Sure" */}
+  {data.breed === 'Other / Not Sure' && (
+    <div className="mt-2">
+      <label className="block text-xs font-medium mb-1 text-gray-600 dark:text-gray-400">
+        Custom Breed
+      </label>
+      <input
+        type="text"
+        value={data.custom_breed}
+        onChange={(e) => setData('custom_breed', e.target.value)}
+        className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none text-sm"
+        placeholder="Type the breed (e.g. Aspin mix)"
+      />
+    </div>
+  )}
+</div>
+
         </div>
 
         {/* Gender */}
@@ -730,9 +766,9 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                     {pet.pname}
                   </h3>
 
-                 
 
-                  
+
+
 
                   <div className="flex gap-2">
                     <Link

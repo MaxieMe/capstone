@@ -68,6 +68,19 @@ Route::middleware(['auth', 'verified', 'approved', 'role:admin,superadmin'])->gr
     Route::delete('/users/{user}', [RoleController::class, 'destroy'])->name('admin.users.destroy');
 
     Route::get('/manage', [ManageController::class, 'index'])->name('manage.index');
+    // ✅ bagong routes para sa posts
+    Route::post('/manage/adoption/{adoption}/approve', [ManageController::class, 'approve'])
+        ->name('manage.adoption.approve');
+
+    Route::post('/manage/adoption/{adoption}/reject', [ManageController::class, 'reject'])
+        ->name('manage.adoption.reject');
+
+    Route::put('/manage/adoption/{adoption}', [ManageController::class, 'update'])
+        ->name('manage.adoption.update');
+
+    // 🆕 DELETE route
+    Route::delete('/manage/adoption/{adoption}', [ManageController::class, 'destroy'])
+        ->name('manage.adoption.destroy');
 });
 
 /*

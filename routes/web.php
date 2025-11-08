@@ -95,6 +95,8 @@ Route::middleware(['auth', 'verified', 'approved', 'role:admin,superadmin'])->gr
     // 🆕 DELETE route
     Route::delete('/manage/adoption/{adoption}', [ManageController::class, 'destroy'])
         ->name('manage.adoption.destroy');
+    Route::get('/history', [ManageController::class, 'history'])
+        ->name('manage.adoption.history');
 });
 
 /*

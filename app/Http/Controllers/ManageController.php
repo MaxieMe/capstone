@@ -3,137 +3,140 @@
 namespace App\Http\Controllers;
 
 use App\Models\Adoption;
+use App\Models\AdoptionInquiry;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class ManageController extends Controller
 {
     /**
-     * Only admin & superadmin allowed.
-     */
-    protected function authorizeModeration(): void
-    {
-        $user = Auth::user();
-
-        if (!$user || !in_array($user->role, ['admin', 'superadmin'], true)) {
-            abort(403, 'Unauthorized.');
-        }
-    }
-
-    /**
-     * Only superadmin allowed.
-     */
-    protected function authorizeSuperadmin(): void
-    {
-        $user = Auth::user();
-
-        if (!$user || $user->role !== 'superadmin') {
-            abort(403, 'Only superadmin can do this.');
-        }
-    }
-
-    /**
-     * GET /manage
-     * List all adoption posts, pending first.
+     * Show list of adoption posts for admin/superadmin (approval, edit, delete).
      */
     public function index(Request $request)
     {
-        $this->authorizeModeration();
+        $query = Adoption::query()
+            ->with('user')
+            ->orderByDesc('created_at');
 
-        $adoptions = Adoption::with('user:id,name,email')
-            ->orderByRaw("CASE WHEN status = 'submitted' THEN 0 ELSE 1 END")
-            ->orderByDesc('created_at')
-            ->paginate(10)
-            ->withQueryString();
+        if ($request->filled('status')) {
+            $query->where('status', $request->string('status'));
+        }
+
+        if ($request->filled('q')) {
+            $q = $request->string('q');
+            $query->where(function ($sub) use ($q) {
+                $sub->where('pname', 'like', "%{$q}%")
+                    ->orWhere('breed', 'like', "%{$q}%")
+                    ->orWhere('location', 'like', "%{$q}%");
+            });
+        }
+
+        $adoptions = $query->paginate(15)->withQueryString();
 
         return Inertia::render('Manage/Index', [
-            'auth'      => [
-                'user' => Auth::user(),
-            ],
             'adoptions' => $adoptions,
+            'filters'   => [
+                'q'      => $request->input('q'),
+                'status' => $request->input('status'),
+            ],
         ]);
     }
 
     /**
-     * POST /manage/adoption/{adoption}/approve
-     * Admin + superadmin can approve.
+     * Approve a post (make it visible on public list).
      */
     public function approve(Adoption $adoption)
     {
-        $this->authorizeModeration();
+        $adoption->update([
+            'is_approved' => true,
+            'status'      => $adoption->status === 'submitted' ? 'available' : $adoption->status,
+        ]);
 
-        $adoption->status = 'available';
-        $adoption->save();
-
-        return back()->with('success', "{$adoption->pname} has been approved and is now available.");
+        return back()->with('success', 'Adoption post approved.');
     }
 
     /**
-     * POST /manage/adoption/{adoption}/reject
-     * Admin + superadmin can reject (delete the post).
+     * Reject a post (keep it hidden / mark as rejected).
      */
-    public function reject(Adoption $adoption)
+    public function reject(Adoption $adoption, Request $request)
     {
-        $this->authorizeModeration();
+        $adoption->update([
+            'is_approved' => false,
+            'status'      => 'submitted', // or 'rejected' kung may ganung status ka
+        ]);
 
-        $name = $adoption->pname;
-        $adoption->delete();
-
-        return back()->with('success', "Post '{$name}' has been rejected and removed.");
+        return back()->with('success', 'Adoption post rejected.');
     }
 
     /**
-     * PUT /manage/adoption/{adoption}
-     * Only superadmin can edit adoption post.
+     * Update adoption post (admin/superadmin edit).
      */
     public function update(Request $request, Adoption $adoption)
     {
-        $this->authorizeSuperadmin();
-
-        $validated = $request->validate([
-            'pname'       => ['required', 'string', 'max:120'],
-            'gender'      => ['required', Rule::in(['male', 'female'])],
-            'age'         => ['required', 'integer', 'min:1', 'max:600'],
-            'age_unit'    => ['required', Rule::in(['months', 'years'])],
-            'category'    => ['required', Rule::in(['cat', 'dog'])],
-            'breed'       => ['required', 'string', 'max:120'],
-            'color'       => ['nullable', 'string', 'max:120'],
-            'location'    => ['nullable', 'string', 'max:180'],
-            'description' => ['nullable', 'string', 'max:2000'],
-            // image upload kung gusto mong isama, pero for now text fields lang tayo
+        $data = $request->validate([
+            'pname'      => ['required', 'string', 'max:255'],
+            'gender'     => ['required', 'in:male,female'],
+            'age'        => ['required', 'integer', 'min:1'],
+            'age_unit'   => ['required', 'in:months,years'],
+            'category'   => ['required', 'in:cat,dog'],
+            'breed'      => ['nullable', 'string', 'max:255'],
+            'color'      => ['nullable', 'string', 'max:255'],
+            'location'   => ['nullable', 'string', 'max:255'],
+            'description'=> ['nullable', 'string'],
+            'status'     => ['required', 'in:submitted,available,pending,adopted'],
         ]);
 
-        $adoption->update([
-            'pname'       => $validated['pname'],
-            'gender'      => strtolower($validated['gender']),
-            'age'         => (int) $validated['age'],
-            'age_unit'    => $validated['age_unit'],
-            'category'    => strtolower($validated['category']),
-            'breed'       => $validated['breed'],
-            'color'       => $validated['color'] ?? null,
-            'location'    => $validated['location'] ?? null,
-            'description' => $validated['description'] ?? null,
-        ]);
+        $adoption->update($data);
 
-        return back()->with('success', "{$adoption->pname} has been updated successfully.");
-
+        return back()->with('success', 'Adoption post updated.');
     }
+
+    /**
+     * Delete adoption post.
+     */
     public function destroy(Adoption $adoption)
-{
-    $this->authorizeSuperadmin(); // superadmin only
+    {
+        $adoption->delete();
 
-    $name = $adoption->pname;
-
-    // optional: burahin din image file sa storage kung meron
-    if ($adoption->image_path) {
-        Storage::disk('public')->delete($adoption->image_path);
+        return back()->with('success', 'Adoption post deleted.');
     }
 
-    $adoption->delete();
+    /**
+     * 🆕 Adoption history: list of all inquiries for admins/superadmins.
+     */
+    public function history(Request $request)
+    {
+        $query = AdoptionInquiry::query()
+            ->with([
+                'adoption.user',   // pet + owner
+                'requester',       // adopter (kung registered)
+            ])
+            ->orderByDesc('created_at');
 
-    return back()->with('success', "Post '{$name}' has been deleted.");
-}
+        // Optional filters
+        if ($request->filled('status')) {
+            $query->where('status', $request->string('status'));
+        }
+
+        if ($request->filled('q')) {
+            $q = $request->string('q');
+            $query->where(function ($sub) use ($q) {
+                $sub->where('requester_name', 'like', "%{$q}%")
+                    ->orWhere('requester_email', 'like', "%{$q}%")
+                    ->orWhereHas('adoption', function ($sub2) use ($q) {
+                        $sub2->where('pname', 'like', "%{$q}%");
+                    });
+            });
+        }
+
+        $inquiries = $query->paginate(20)->withQueryString();
+
+        return Inertia::render('Manage/AdoptionHistory', [
+            'inquiries' => $inquiries,
+            'filters'   => [
+                'q'      => $request->input('q'),
+                'status' => $request->input('status'),
+            ],
+        ]);
+    }
 }

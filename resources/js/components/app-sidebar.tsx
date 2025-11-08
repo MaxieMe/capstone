@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/sidebar';
 import { NavItem } from '@/types';
 import { Link } from '@inertiajs/react';
-import { LayoutGrid, Shield, Settings, Users, Info, HandHeart, Newspaper } from 'lucide-react';
+import { LayoutGrid, Shield, Settings, Users, Info, HandHeart, Newspaper, History } from 'lucide-react';
 import { usePage } from '@inertiajs/react';
 import AppLogo from './app-logo';
 import { dashboard } from '@/routes';
@@ -60,6 +60,11 @@ const adminNavItems: NavItem[] = [
         title: 'Manage Post',
         href: '/manage',
         icon: Newspaper,
+    },
+    {
+        title: 'History',
+        href: '/history',
+        icon: History,
     },
 ];
 

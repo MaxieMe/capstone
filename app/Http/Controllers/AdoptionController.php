@@ -34,7 +34,7 @@ class AdoptionController extends Controller
 
         if (!$user) {
             $queryUsers = User::query()
-                ->select('id', 'name') // Tinanggal ang 'username'
+                ->select('id', 'name')
                 ->whereHas('adoptions', fn ($q) => $q->where('status', 'available'))
                 ->withCount([
                     'adoptions as available_posts_count' => fn ($q) => $q->where('status', 'available'),
@@ -106,18 +106,7 @@ class AdoptionController extends Controller
             abort(403, 'You are not allowed to post an adoption.');
         }
 
-        $validated = $request->validate([
-            'pname'       => ['required', 'string', 'max:120'],
-            'gender'      => ['required', Rule::in(['male', 'female'])],
-            'age'         => ['required', 'integer', 'min:1', 'max:600'],
-            'age_unit'    => ['required', Rule::in(['months', 'years'])],
-            'category'    => ['required', Rule::in(['cat', 'dog'])],
-            'breed'       => ['required', 'string', 'max:120'],
-            'color'       => ['nullable', 'string', 'max:120'],
-            'location'    => ['nullable', 'string', 'max:180'],
-            'description' => ['nullable', 'string', 'max:2000'],
-            'image'       => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
-        ]);
+        $validated = $this->validatePet($request, false);
 
         $path = null;
         if ($request->hasFile('image')) {
@@ -142,6 +131,63 @@ class AdoptionController extends Controller
         return back()->with('success', 'Pet posted for adoption!');
     }
 
+    /** PUT /adoption/{adoption} */
+    public function update(Request $request, Adoption $adoption)
+    {
+        $user = $request->user();
+
+        // OWNER LANG, hindi admin/superadmin dito (may sarili silang manage panel)
+        if (!$user || $user->id !== $adoption->user_id) {
+            abort(403, 'You are not allowed to edit this post.');
+        }
+
+        $validated = $this->validatePet($request, true);
+
+        // handle image replacement if new file is uploaded
+        if ($request->hasFile('image')) {
+            if ($adoption->image_path) {
+                Storage::disk('public')->delete($adoption->image_path);
+            }
+            $adoption->image_path = $request->file('image')->store('pets', 'public');
+        }
+
+        $adoption->pname       = $validated['pname'];
+        $adoption->gender      = strtolower($validated['gender']);
+        $adoption->age         = (int) $validated['age'];
+        $adoption->age_unit    = $validated['age_unit'];
+        $adoption->category    = strtolower($validated['category']);
+        $adoption->breed       = $validated['breed'];
+        $adoption->color       = $validated['color'] ?? null;
+        $adoption->location    = $validated['location'] ?? null;
+        $adoption->description = $validated['description'] ?? null;
+
+        $adoption->save();
+
+        return back()->with('success', 'Adoption post updated.');
+    }
+
+    /** POST /adoption/{adoption}/cancel */
+    public function cancel(Request $request, Adoption $adoption)
+    {
+        $user = $request->user();
+
+        // OWNER LANG
+        if (!$user || $user->id !== $adoption->user_id) {
+            abort(403, 'You are not allowed to cancel this adoption.');
+        }
+
+        if ($adoption->status !== 'pending') {
+            return back()->with('error', 'Only pending posts can be cancelled.');
+        }
+
+        $adoption->status = 'available';
+        $adoption->save();
+
+        // optionally: update inquiries status here…
+
+        return back()->with('success', 'Pending adoption cancelled. Pet is now available again.');
+    }
+
     /** GET /adoption/{adoption} */
     public function show(Adoption $adoption)
     {
@@ -154,7 +200,7 @@ class AdoptionController extends Controller
         return Inertia::render('Adoption/Show', ['pet' => $adoption]);
     }
 
-    /** PATCH /adoption/{adoption}/status */
+    /** PATCH /adoption/{adoption}/status (admin/superadmin) */
     public function updateStatus(Request $request, Adoption $adoption)
     {
         $user = $request->user();
@@ -176,7 +222,11 @@ class AdoptionController extends Controller
     public function destroy(Request $request, Adoption $adoption)
     {
         $user = $request->user();
-        if (!$user || ($user->id !== $adoption->user_id && !in_array($user->role, ['admin', 'superadmin'], true))) {
+        if (
+            !$user ||
+            ($user->id !== $adoption->user_id &&
+                !in_array($user->role, ['admin', 'superadmin'], true))
+        ) {
             abort(403);
         }
 
@@ -193,9 +243,13 @@ class AdoptionController extends Controller
 
     private function ageText(?int $age, ?string $unit): string
     {
-        if ($age === null || $age <= 0) return 'N/A';
+        if ($age === null || $age <= 0) {
+            return 'N/A';
+        }
+
         $singular = $unit === 'months' ? 'month' : 'year';
-        $label = $age === 1 ? $singular : $singular . 's';
+        $label    = $age === 1 ? $singular : $singular . 's';
+
         return "{$age} {$label}";
     }
 
@@ -204,7 +258,7 @@ class AdoptionController extends Controller
         if (!$category || $age === null) return null;
 
         $months = ($unit === 'months') ? $age : $age * 12;
-        $type = strtolower($category);
+        $type   = strtolower($category);
 
         if ($type === 'dog') {
             if ($months < 6)   return 'Puppy';
@@ -225,5 +279,29 @@ class AdoptionController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * Shared validation rules for create/update
+     *
+     * @param  Request  $request
+     * @param  bool     $isUpdate
+     * @return array<string,mixed>
+     */
+    private function validatePet(Request $request, bool $isUpdate = false): array
+    {
+        return $request->validate([
+            'pname'       => ['required', 'string', 'max:120'],
+            'gender'      => ['required', Rule::in(['male', 'female'])],
+            'age'         => ['required', 'integer', 'min:1', 'max:600'],
+            'age_unit'    => ['required', Rule::in(['months', 'years'])],
+            'category'    => ['required', Rule::in(['cat', 'dog'])],
+            'breed'       => ['required', 'string', 'max:120'],
+            'color'       => ['nullable', 'string', 'max:120'],
+            'location'    => ['nullable', 'string', 'max:180'],
+            'description' => ['nullable', 'string', 'max:2000'],
+            // image optional for both create/update, pero required mag-upload kung gusto nilang magpalit
+            'image'       => [$isUpdate ? 'nullable' : 'nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+        ]);
     }
 }

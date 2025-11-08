@@ -9,9 +9,6 @@ use Inertia\Inertia;
 
 class ManageController extends Controller
 {
-    /**
-     * Show list of adoption posts for admin/superadmin (approval, edit, delete).
-     */
     public function index(Request $request)
     {
         $query = Adoption::query()
@@ -42,9 +39,6 @@ class ManageController extends Controller
         ]);
     }
 
-    /**
-     * Approve a post (make it visible on public list).
-     */
     public function approve(Adoption $adoption)
     {
         $adoption->update([
@@ -55,35 +49,29 @@ class ManageController extends Controller
         return back()->with('success', 'Adoption post approved.');
     }
 
-    /**
-     * Reject a post (keep it hidden / mark as rejected).
-     */
     public function reject(Adoption $adoption, Request $request)
     {
         $adoption->update([
             'is_approved' => false,
-            'status'      => 'submitted', // or 'rejected' kung may ganung status ka
+            'status'      => 'submitted', // or 'rejected' kung meron kang ganitong status
         ]);
 
         return back()->with('success', 'Adoption post rejected.');
     }
 
-    /**
-     * Update adoption post (admin/superadmin edit).
-     */
     public function update(Request $request, Adoption $adoption)
     {
         $data = $request->validate([
-            'pname'      => ['required', 'string', 'max:255'],
-            'gender'     => ['required', 'in:male,female'],
-            'age'        => ['required', 'integer', 'min:1'],
-            'age_unit'   => ['required', 'in:months,years'],
-            'category'   => ['required', 'in:cat,dog'],
-            'breed'      => ['nullable', 'string', 'max:255'],
-            'color'      => ['nullable', 'string', 'max:255'],
-            'location'   => ['nullable', 'string', 'max:255'],
-            'description'=> ['nullable', 'string'],
-            'status'     => ['required', 'in:submitted,available,pending,adopted'],
+            'pname'       => ['required', 'string', 'max:255'],
+            'gender'      => ['required', 'in:male,female'],
+            'age'         => ['required', 'integer', 'min:1'],
+            'age_unit'    => ['required', 'in:months,years'],
+            'category'    => ['required', 'in:cat,dog'],
+            'breed'       => ['nullable', 'string', 'max:255'],
+            'color'       => ['nullable', 'string', 'max:255'],
+            'location'    => ['nullable', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'status'      => ['sometimes', 'in:submitted,available,pending,adopted'],
         ]);
 
         $adoption->update($data);
@@ -91,9 +79,6 @@ class ManageController extends Controller
         return back()->with('success', 'Adoption post updated.');
     }
 
-    /**
-     * Delete adoption post.
-     */
     public function destroy(Adoption $adoption)
     {
         $adoption->delete();
@@ -101,19 +86,15 @@ class ManageController extends Controller
         return back()->with('success', 'Adoption post deleted.');
     }
 
-    /**
-     * 🆕 Adoption history: list of all inquiries for admins/superadmins.
-     */
     public function history(Request $request)
     {
         $query = AdoptionInquiry::query()
             ->with([
-                'adoption.user',   // pet + owner
-                'requester',       // adopter (kung registered)
+                'adoption.user',
+                'requester',
             ])
             ->orderByDesc('created_at');
 
-        // Optional filters
         if ($request->filled('status')) {
             $query->where('status', $request->string('status'));
         }

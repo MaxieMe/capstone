@@ -4,7 +4,7 @@ import { XButton } from '@/components1/x-button';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, useForm, Link, usePage, router } from '@inertiajs/react';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { CAT_BREEDS, DOG_BREEDS } from '@/components1/breed';
 import { route } from 'ziggy-js';
 
@@ -60,15 +60,23 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
   const auth = page?.auth ?? {};
   const user = auth?.user ?? null;
   const isAuthenticated = !!user;
-  const canPost = isAuthenticated && (['user', 'admin', 'superadmin'] as Role[]).includes(user?.role as Role);
+  const canPost =
+    isAuthenticated &&
+    (['user', 'admin', 'superadmin'] as Role[]).includes(user?.role as Role);
+
+  const currentUserId = user?.id as number | undefined;
 
   // UI state
   const [showModal, setShowModal] = useState(false);
+  const [editingPet, setEditingPet] = useState<Pet | null>(null);
+
   const [activeCategory, setActiveCategory] = useState<'All' | 'cat' | 'dog'>(
     (filters?.category as any) || 'All'
   );
   const [activeGender, setActiveGender] = useState<'All' | 'Male' | 'Female'>(
-    (filters?.gender ? (filters.gender.toLowerCase() === 'male' ? 'Male' : 'Female') : 'All') as any
+    (filters?.gender
+      ? (filters.gender.toLowerCase() === 'male' ? 'Male' : 'Female')
+      : 'All') as any
   );
   const [search, setSearch] = useState(filters?.q ?? '');
 
@@ -77,43 +85,52 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
 
   // pets list
   const list: Pet[] = Array.isArray(adoption?.data) ? adoption.data : [];
+
   const filteredPets = useMemo(() => {
     return list
       .filter((pet) => {
-        const availableOnly = isAuthenticated ? true : ((pet.status || '').toLowerCase() === 'available');
+        const availableOnly = isAuthenticated
+          ? true
+          : (pet.status || '').toLowerCase() === 'available';
         const categoryMatch =
           activeCategory === 'All' ||
-          (pet.category && pet.category.toLowerCase() === activeCategory.toLowerCase());
+          (pet.category &&
+            pet.category.toLowerCase() === activeCategory.toLowerCase());
         const genderMatch =
           activeGender === 'All' ||
-          (pet.gender && pet.gender.toLowerCase() === activeGender.toLowerCase());
+          (pet.gender &&
+            pet.gender.toLowerCase() === activeGender.toLowerCase());
         return availableOnly && categoryMatch && genderMatch;
       })
-      .sort((a, b) => (new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime()));
+      .sort(
+        (a, b) =>
+          new Date(b.created_at || '').getTime() -
+          new Date(a.created_at || '').getTime()
+      );
   }, [list, isAuthenticated, activeCategory, activeGender]);
 
- const {
-  data,
-  setData,
-  post,
-  processing,
-  errors,
-  reset,
-  clearErrors,
-  transform,
-} = useForm({
-  pname: '',
-  gender: '',
-  age: '',
-  age_unit: 'months' as 'months' | 'years',
-  category: '' as 'cat' | 'dog' | '',
-  breed: '',
-  custom_breed: '', // ⬅️ NEW
-  color: '',
-  location: '',
-  description: '',
-  image: null as File | null,
-});
+  const {
+    data,
+    setData,
+    post,
+    processing,
+    errors,
+    reset,
+    clearErrors,
+    transform,
+  } = useForm({
+    pname: '',
+    gender: '',
+    age: '',
+    age_unit: 'months' as 'months' | 'years',
+    category: '' as 'cat' | 'dog' | '',
+    breed: '',
+    custom_breed: '',
+    color: '',
+    location: '',
+    description: '',
+    image: null as File | null,
+  });
 
   const breedOptions = useMemo(() => {
     if (data.category === 'dog') return DOG_BREEDS;
@@ -121,35 +138,100 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
     return [];
   }, [data.category]);
 
-  useEffect(() => {
-  setData('breed', '');
-  setData('custom_breed', '');
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [data.category]);
+  // ❌ WALA NANG useEffect DITO na nagre-reset ng breed/custom_breed
 
-  const handleOpenModal = () => setShowModal(true);
+  const isOwner = (pet: Pet) =>
+    !!currentUserId && pet.user?.id === currentUserId;
+
+  const openCreateModal = () => {
+    setEditingPet(null);
+    reset();
+    clearErrors();
+    setShowModal(true);
+  };
+
+  const openEditModal = (pet: Pet) => {
+    setEditingPet(pet);
+    clearErrors();
+
+    setData('pname', pet.pname || '');
+    setData('gender', pet.gender || '');
+    setData('age', pet.age != null ? String(pet.age) : '');
+    setData('age_unit', (pet.age_unit as 'months' | 'years') || 'months');
+    setData('category', (pet.category as 'cat' | 'dog' | '') || '');
+    setData('breed', pet.breed || '');
+    setData('custom_breed', '');
+    setData('color', pet.color || '');
+    setData('location', pet.location || '');
+    setData('description', pet.description || '');
+    setData('image', null);
+
+    setShowModal(true);
+  };
+
   const handleCloseModal = () => {
     setShowModal(false);
+    setEditingPet(null);
     reset();
     clearErrors();
   };
 
   const handleSubmit = (e: React.FormEvent) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  transform((formData) => ({
-    ...formData,
-    breed:
-      formData.breed === 'Other / Not Sure'
-        ? (formData as any).custom_breed || 'Other / Not Sure'
-        : formData.breed,
-  }));
+    if (editingPet) {
+      // EDIT MODE → send PUT via _method spoofing
+      transform((formData) => ({
+        ...formData,
+        breed:
+          formData.breed === 'Other / Not Sure'
+            ? (formData as any).custom_breed || 'Other / Not Sure'
+            : formData.breed,
+        _method: 'PUT',
+      }));
 
-  post(route('adoption.store'), {
-    forceFormData: true,
-    onSuccess: () => handleCloseModal(),
-  });
-};
+      post(route('adoption.update', editingPet.id), {
+        forceFormData: true,
+        onSuccess: () => {
+          handleCloseModal();
+        },
+      });
+    } else {
+      // CREATE MODE
+      transform((formData) => ({
+        ...formData,
+        breed:
+          formData.breed === 'Other / Not Sure'
+            ? (formData as any).custom_breed || 'Other / Not Sure'
+            : formData.breed,
+      }));
+
+      post(route('adoption.store'), {
+        forceFormData: true,
+        onSuccess: () => handleCloseModal(),
+      });
+    }
+  };
+
+  const handleCancelPending = (pet: Pet) => {
+    if (!confirm('Cancel this pending adoption?')) return;
+
+    router.post(
+      route('adoption.cancel', pet.id),
+      {},
+      {
+        preserveScroll: true,
+      }
+    );
+  };
+
+  const handleDelete = (pet: Pet) => {
+    if (!confirm('Are you sure you want to delete this post?')) return;
+
+    router.delete(route('adoption.destroy', pet.id), {
+      preserveScroll: true,
+    });
+  };
 
   // helpers
   const computeLifeStage = (category?: string, age?: number, unit?: string) => {
@@ -177,7 +259,14 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
   const ageText = (age?: number, unit?: string) => {
     if (age == null) return 'N/A';
     const u = unit || 'years';
-    const label = u === 'months' ? (age === 1 ? 'month' : 'months') : (age === 1 ? 'year' : 'years');
+    const label =
+      u === 'months'
+        ? age === 1
+          ? 'month'
+          : 'months'
+        : age === 1
+        ? 'year'
+        : 'years';
     return `${age} ${label}`;
   };
 
@@ -199,7 +288,10 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
       route('adoption.index', {
         q: search || undefined,
         category: activeCategory !== 'All' ? activeCategory : undefined,
-        gender: activeGender !== 'All' ? activeGender.toLowerCase() : undefined,
+        gender:
+          activeGender !== 'All'
+            ? activeGender.toLowerCase()
+            : undefined,
       }),
       { preserveScroll: true, preserveState: true }
     );
@@ -208,15 +300,22 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
   // guest directory search
   const submitGuestSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    guestSearchForm.get(route('adoption.index'), { preserveState: true, preserveScroll: true });
+    guestSearchForm.get(route('adoption.index'), {
+      preserveState: true,
+      preserveScroll: true,
+    });
   };
 
   // ===================== GUEST VIEW =====================
   if (!isAuthenticated) {
-    const users: GuestUser[] = Array.isArray(guestUsers?.data) ? guestUsers!.data : [];
+    const users: GuestUser[] = Array.isArray(guestUsers?.data)
+      ? guestUsers!.data
+      : [];
 
     return (
-      <AppLayout breadcrumbs={[{ title: 'Adoption (Guests)', href: route('adoption.index') }]}>
+      <AppLayout
+        breadcrumbs={[{ title: 'Adoption (Guests)', href: route('adoption.index') }]}
+      >
         <Head title="Browse Owners — Available Pets" />
 
         {/* Hero */}
@@ -228,7 +327,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
               <span>Browse Users with Available Pets</span>
             </div>
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black bg-gradient-to-r from-violet-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-             Welcome to PetCare
+              Welcome to PetCare
             </h1>
 
             {/* Search users */}
@@ -237,7 +336,9 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                 <input
                   type="text"
                   value={guestSearchForm.data.q}
-                  onChange={(e) => guestSearchForm.setData('q', e.target.value)}
+                  onChange={(e) =>
+                    guestSearchForm.setData('q', e.target.value)
+                  }
                   className="flex-1 px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none"
                   placeholder="Search name"
                 />
@@ -271,7 +372,8 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                           alt={u.name}
                           className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                           onError={(e) => {
-                            if (e.currentTarget.src !== PLACEHOLDER) e.currentTarget.src = PLACEHOLDER;
+                            if (e.currentTarget.src !== PLACEHOLDER)
+                              e.currentTarget.src = PLACEHOLDER;
                           }}
                         />
                         <div className="absolute -bottom-6 left-5 w-12 h-12 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 text-white font-bold flex items-center justify-center shadow-lg">
@@ -282,15 +384,25 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                       <div className="p-5 pt-8">
                         <div className="flex items-center justify-between">
                           <div>
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-white">{u.name}</h3>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">@{name}</p>
+                            <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                              {u.name}
+                            </h3>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              @{name}
+                            </p>
                           </div>
                           <div className="text-right">
                             <div className="text-xs text-gray-500 dark:text-gray-400">
-                              <span className="font-semibold">{u.available_posts_count ?? 0}</span> available
+                              <span className="font-semibold">
+                                {u.available_posts_count ?? 0}
+                              </span>{' '}
+                              available
                             </div>
                             <div className="text-xs text-gray-500 dark:text-gray-400">
-                              <span className="font-semibold">{u.total_posts_count ?? 0}</span> total
+                              <span className="font-semibold">
+                                {u.total_posts_count ?? 0}
+                              </span>{' '}
+                              total
                             </div>
                           </div>
                         </div>
@@ -317,31 +429,36 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
               </div>
 
               {/* Users pagination (desktop) */}
-              {Array.isArray(guestUsers?.links) && guestUsers!.links.length > 0 && (
-                <div className="mt-8 hidden sm:flex justify-center gap-2">
-                  {guestUsers!.links.map((link, i) => (
-                    <button
-                      key={i}
-                      disabled={!link.url}
-                      onClick={() => link.url && router.visit(link.url)}
-                      className={`px-4 py-2 rounded-xl font-semibold transition-all ${
-                        link.active
-                          ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-lg scale-105'
-                          : 'bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-                      } disabled:opacity-50 disabled:cursor-not-allowed`}
-                      dangerouslySetInnerHTML={{ __html: link.label }}
-                    />
-                  ))}
-                </div>
-              )}
+              {Array.isArray(guestUsers?.links) &&
+                guestUsers!.links.length > 0 && (
+                  <div className="mt-8 hidden sm:flex justify-center gap-2">
+                    {guestUsers!.links.map((link, i) => (
+                      <button
+                        key={i}
+                        disabled={!link.url}
+                        onClick={() => link.url && router.visit(link.url)}
+                        className={`px-4 py-2 rounded-xl font-semibold transition-all ${
+                          link.active
+                            ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-lg scale-105'
+                            : 'bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                        dangerouslySetInnerHTML={{ __html: link.label }}
+                      />
+                    ))}
+                  </div>
+                )}
             </>
           ) : (
             <div className="text-center py-16">
               <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-violet-100 to-purple-200 dark:from-gray-700 dark:to-gray-600 rounded-full mb-6">
                 <span className="text-5xl">🔍</span>
               </div>
-              <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">No users found</h3>
-              <p className="text-gray-600 dark:text-gray-400 mb-6">Try a different keyword.</p>
+              <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                No users found
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400 mb-6">
+                Try a different keyword.
+              </p>
               <Link
                 href={route('adoption.index')}
                 className="inline-flex items-center gap-2 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white font-semibold px-6 py-3 rounded-xl transition-all shadow-lg"
@@ -360,24 +477,20 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
     <AppLayout breadcrumbs={breadcrumbs}>
       <Head title="Pet Adoption" />
 
-      {/* Hero + Search */}
+      {/* Hero */}
       <div className="relative overflow-hidden bg-gradient-to-br from-violet-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-purple-900/20 dark:to-gray-900 py-12 sm:py-16 lg:py-20">
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzg4ODgiIHN0cm9rZS13aWR0aD0iMC41Ii8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-30"></div>
-
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black bg-gradient-to-r from-violet-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-4">
             Welcome to PetCare
           </h1>
-
-
         </div>
       </div>
 
       {/* Floating Add Button */}
       {canPost && (
         <button
-          onClick={handleOpenModal}
+          onClick={openCreateModal}
           className="fixed z-50 right-4 sm:right-6 lg:right-8 bottom-4 sm:bottom-6 lg:bottom-8 group"
           aria-label="Add adoption post"
         >
@@ -392,265 +505,329 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
 
       <DisableScroll showModal={showModal} />
 
- {/* Enhanced Modal - Bottom */}
-{showModal && (
-  <div className="fixed inset-0 z-50 flex items-end justify-center p-4 bg-black/60 backdrop-blur-sm pt-32">
-    <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-t-2xl bg-white dark:bg-gray-800 shadow-2xl">
-      {/* Modal Header */}
-      <div className="sticky top-0 z-10 bg-gradient-to-r from-violet-600 to-purple-600 p-6 rounded-t-2xl">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-              <span className="text-3xl">🐾</span>
-              Add Pet for Adoption
-            </h2>
-            <p className="text-violet-100 text-sm mt-1">Fill in the details below</p>
-          </div>
-          <button
-            onClick={handleCloseModal}
-            className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
-            aria-label="Close"
-          >
-            <XButton />
-          </button>
-        </div>
-      </div>
-
-      <form onSubmit={handleSubmit} encType="multipart/form-data" className="p-6 space-y-5">
-        {/* Pet Name */}
-        <div>
-          <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
-            Pet Name <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            name="pname"
-            value={data.pname}
-            onChange={(e) => setData('pname', e.target.value)}
-            className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none"
-            placeholder="e.g., Fluffy, Max, Bella"
-            required
-          />
-          {errors.pname && <p className="text-red-500 text-xs mt-1">{errors.pname}</p>}
-        </div>
-
-        {/* Pet Type & Breed */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
-              Pet Type <span className="text-red-500">*</span>
-            </label>
-            <select
-              name="category"
-              value={data.category}
-              onChange={(e) => {
-                const val = e.target.value as 'cat' | 'dog' | '';
-                setData('category', val);
-                setData('breed', '');
-              }}
-              className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none"
-              required
-            >
-              <option value="">Select Pet Type</option>
-              <option value="cat">🐱 Cat</option>
-              <option value="dog">🐶 Dog</option>
-            </select>
-            {errors.category && <p className="text-red-500 text-xs mt-1">{errors.category}</p>}
-          </div>
-
-          <div>
-  <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
-    Breed <span className="text-red-500">*</span>
-  </label>
-  <select
-    name="breed"
-    value={data.breed}
-    onChange={(e) => setData('breed', e.target.value)}
-    disabled={!data.category}
-    className={`w-full px-4 py-3 rounded-xl border-2 ${
-      !data.category
-        ? 'border-gray-200 dark:border-gray-700 opacity-70 cursor-not-allowed'
-        : 'border-gray-200 dark:border-gray-600'
-    } bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none`}
-    required
-  >
-    {!data.category ? (
-      <option value="">Select pet type first</option>
-    ) : (
-      <>
-        <option value="">
-          {`Select ${data.category === 'dog' ? 'Dog' : 'Cat'} Breed`}
-        </option>
-        {(data.category === 'dog' ? DOG_BREEDS : CAT_BREEDS).map((b: string) => (
-          <option key={b} value={b}>
-            {b}
-          </option>
-        ))}
-      </>
-    )}
-  </select>
-  {errors.breed && <p className="text-red-500 text-xs mt-1">{errors.breed}</p>}
-
-  {/* Custom Breed input kapag "Other / Not Sure" */}
-  {data.breed === 'Other / Not Sure' && (
-    <div className="mt-2">
-      <label className="block text-xs font-medium mb-1 text-gray-600 dark:text-gray-400">
-        Custom Breed
-      </label>
-      <input
-        type="text"
-        value={data.custom_breed}
-        onChange={(e) => setData('custom_breed', e.target.value)}
-        className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none text-sm"
-        placeholder="Type the breed (e.g. Aspin mix)"
-      />
-    </div>
-  )}
-</div>
-
-        </div>
-
-        {/* Gender */}
-        <div>
-          <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
-            Gender <span className="text-red-500">*</span>
-          </label>
-          <div className="flex gap-4">
-            {['male', 'female'].map((g) => (
-              <label key={g} className="flex-1">
-                <input
-                  type="radio"
-                  name="gender"
-                  value={g}
-                  checked={data.gender === g}
-                  onChange={(e) => setData('gender', e.target.value)}
-                  className="peer hidden"
-                />
-                <div className="cursor-pointer rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-3 text-center font-medium capitalize transition-all peer-checked:border-violet-500 peer-checked:bg-violet-50 dark:peer-checked:bg-violet-900/30 peer-checked:text-violet-700 dark:peer-checked:text-violet-300">
-                  {g === 'male' ? '♂️ Male' : '♀️ Female'}
+      {/* Modal (Create/Edit) */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center p-4 bg-black/60 backdrop-blur-sm pt-32">
+          <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-t-2xl bg-white dark:bg-gray-800 shadow-2xl">
+            {/* Modal Header */}
+            <div className="sticky top-0 z-10 bg-gradient-to-r from-violet-600 to-purple-600 p-6 rounded-t-2xl">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                    <span className="text-3xl">🐾</span>
+                    {editingPet ? 'Edit Pet' : 'Add Pet for Adoption'}
+                  </h2>
+                  <p className="text-violet-100 text-sm mt-1">
+                    {editingPet
+                      ? 'Update the details of your adoption post'
+                      : 'Fill in the details below'}
+                  </p>
                 </div>
-              </label>
-            ))}
-          </div>
-          {errors.gender && <p className="text-red-500 text-xs mt-1">{errors.gender}</p>}
-        </div>
+                <button
+                  onClick={handleCloseModal}
+                  className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
+                  aria-label="Close"
+                >
+                  <XButton />
+                </button>
+              </div>
+            </div>
 
-        {/* Age */}
-        <div>
-          <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
-            Age <span className="text-red-500">*</span>
-          </label>
-          <div className="grid grid-cols-2 gap-3">
-            <input
-              type="number"
-              name="age"
-              min={1}
-              value={data.age}
-              onChange={(e) => setData('age', e.target.value)}
-              className="px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none"
-              placeholder="Enter age"
-              required
-            />
-            <select
-              name="age_unit"
-              value={data.age_unit}
-              onChange={(e) => setData('age_unit', e.target.value as 'months' | 'years')}
-              className="px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none"
+            <form
+              onSubmit={handleSubmit}
+              encType="multipart/form-data"
+              className="p-6 space-y-5"
             >
-              <option value="months">Months</option>
-              <option value="years">Years</option>
-            </select>
+              {/* Pet Name */}
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                  Pet Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="pname"
+                  value={data.pname}
+                  onChange={(e) => setData('pname', e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none"
+                  placeholder="e.g., Fluffy, Max, Bella"
+                  required
+                />
+                {errors.pname && (
+                  <p className="text-red-500 text-xs mt-1">{errors.pname}</p>
+                )}
+              </div>
+
+              {/* Pet Type & Breed */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                    Pet Type <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    name="category"
+                    value={data.category}
+                    onChange={(e) => {
+                      const val = e.target.value as 'cat' | 'dog' | '';
+                      setData('category', val);
+                      // NOTE: hindi na natin nirereset yung breed dito para sa Edit
+                    }}
+                    className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none"
+                    required
+                  >
+                    <option value="">Select Pet Type</option>
+                    <option value="cat">🐱 Cat</option>
+                    <option value="dog">🐶 Dog</option>
+                  </select>
+                  {errors.category && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.category}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                    Breed <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    name="breed"
+                    value={data.breed}
+                    onChange={(e) => setData('breed', e.target.value)}
+                    disabled={!data.category}
+                    className={`w-full px-4 py-3 rounded-xl border-2 ${
+                      !data.category
+                        ? 'border-gray-200 dark:border-gray-700 opacity-70 cursor-not-allowed'
+                        : 'border-gray-200 dark:border-gray-600'
+                    } bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none`}
+                    required
+                  >
+                    {!data.category ? (
+                      <option value="">Select pet type first</option>
+                    ) : (
+                      <>
+                        <option value="">
+                          {`Select ${
+                            data.category === 'dog' ? 'Dog' : 'Cat'
+                          } Breed`}
+                        </option>
+                        {breedOptions.map((b: string) => (
+                          <option key={b} value={b}>
+                            {b}
+                          </option>
+                        ))}
+                      </>
+                    )}
+                  </select>
+                  {errors.breed && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.breed}
+                    </p>
+                  )}
+
+                  {data.breed === 'Other / Not Sure' && (
+                    <div className="mt-2">
+                      <label className="block text-xs font-medium mb-1 text-gray-600 dark:text-gray-400">
+                        Custom Breed
+                      </label>
+                      <input
+                        type="text"
+                        value={data.custom_breed}
+                        onChange={(e) =>
+                          setData('custom_breed', e.target.value)
+                        }
+                        className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none text-sm"
+                        placeholder="Type the breed (e.g. Aspin mix)"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Gender */}
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                  Gender <span className="text-red-500">*</span>
+                </label>
+                <div className="flex gap-4">
+                  {['male', 'female'].map((g) => (
+                    <label key={g} className="flex-1">
+                      <input
+                        type="radio"
+                        name="gender"
+                        value={g}
+                        checked={data.gender === g}
+                        onChange={(e) => setData('gender', e.target.value)}
+                        className="peer hidden"
+                      />
+                      <div className="cursor-pointer rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-3 text-center font-medium capitalize transition-all peer-checked:border-violet-500 peer-checked:bg-violet-50 dark:peer-checked:bg-violet-900/30 peer-checked:text-violet-700 dark:peer-checked:text-violet-300">
+                        {g === 'male' ? '♂️ Male' : '♀️ Female'}
+                      </div>
+                    </label>
+                  ))}
+                </div>
+                {errors.gender && (
+                  <p className="text-red-500 text-xs mt-1">{errors.gender}</p>
+                )}
+              </div>
+
+              {/* Age */}
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                  Age <span className="text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <input
+                    type="number"
+                    name="age"
+                    min={1}
+                    value={data.age}
+                    onChange={(e) => setData('age', e.target.value)}
+                    className="px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none"
+                    placeholder="Enter age"
+                    required
+                  />
+                  <select
+                    name="age_unit"
+                    value={data.age_unit}
+                    onChange={(e) =>
+                      setData('age_unit', e.target.value as 'months' | 'years')
+                    }
+                    className="px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none"
+                  >
+                    <option value="months">Months</option>
+                    <option value="years">Years</option>
+                  </select>
+                </div>
+                {errors.age && (
+                  <p className="text-red-500 text-xs mt-1">{errors.age}</p>
+                )}
+              </div>
+
+              {/* Color & Location */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                    Color
+                  </label>
+                  <input
+                    type="text"
+                    name="color"
+                    value={data.color}
+                    onChange={(e) => setData('color', e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none"
+                    placeholder="e.g., Brown, White"
+                  />
+                  {errors.color && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.color}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                    Location
+                  </label>
+                  <input
+                    type="text"
+                    name="location"
+                    value={data.location}
+                    onChange={(e) => setData('location', e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none"
+                    placeholder="e.g., Manila"
+                  />
+                  {errors.location && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.location}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                  Description
+                </label>
+                <textarea
+                  name="description"
+                  rows={4}
+                  value={data.description}
+                  onChange={(e) => setData('description', e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none resize-none"
+                  placeholder="Tell us about this pet's personality, habits, and why they'd make a great companion..."
+                />
+                {errors.description && (
+                  <p className="text-red-500 text-xs mt-1">
+                    {errors.description}
+                  </p>
+                )}
+              </div>
+
+              {/* Image Upload */}
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                  Pet Photo {editingPet ? '(optional if no change)' : ''}
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                      setData('image', e.target.files[0]);
+                    }
+                  }}
+                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-6 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100 dark:file:bg-violet-900/30 dark:file:text-violet-300 file:cursor-pointer"
+                />
+                {errors.image && (
+                  <p className="text-red-500 text-xs mt-1">{errors.image}</p>
+                )}
+              </div>
+
+              {/* Buttons */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="flex-1 px-6 py-3 rounded-xl border-2 border-gray-300 dark:border-gray-600 font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={processing}
+                  className="flex-1 px-6 py-3 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 text-white font-semibold hover:from-violet-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl"
+                >
+                  {processing
+                    ? editingPet
+                      ? 'Updating...'
+                      : 'Posting...'
+                    : editingPet
+                    ? 'Update Post'
+                    : 'Post for Adoption'}
+                </button>
+              </div>
+            </form>
           </div>
-          {errors.age && <p className="text-red-500 text-xs mt-1">{errors.age}</p>}
         </div>
-
-        {/* Color & Location */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">Color</label>
-            <input
-              type="text"
-              name="color"
-              value={data.color}
-              onChange={(e) => setData('color', e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none"
-              placeholder="e.g., Brown, White"
-            />
-            {errors.color && <p className="text-red-500 text-xs mt-1">{errors.color}</p>}
-          </div>
-          <div>
-            <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">Location</label>
-            <input
-              type="text"
-              name="location"
-              value={data.location}
-              onChange={(e) => setData('location', e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none"
-              placeholder="e.g., Manila"
-            />
-            {errors.location && <p className="text-red-500 text-xs mt-1">{errors.location}</p>}
-          </div>
-        </div>
-
-        {/* Description */}
-        <div>
-          <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">Description</label>
-          <textarea
-            name="description"
-            rows={4}
-            value={data.description}
-            onChange={(e) => setData('description', e.target.value)}
-            className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none resize-none"
-            placeholder="Tell us about this pet's personality, habits, and why they'd make a great companion..."
-          />
-          {errors.description && <p className="text-red-500 text-xs mt-1">{errors.description}</p>}
-        </div>
-
-        {/* Image Upload */}
-        <div>
-          <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">Pet Photo</label>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(e) => {
-              if (e.target.files && e.target.files.length > 0) {
-                setData('image', e.target.files[0]);
-              }
-            }}
-            className="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-6 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100 dark:file:bg-violet-900/30 dark:file:text-violet-300 file:cursor-pointer"
-          />
-          {errors.image && <p className="text-red-500 text-xs mt-1">{errors.image}</p>}
-        </div>
-
-        {/* Buttons */}
-        <div className="flex gap-3 pt-4">
-          <button
-            type="button"
-            onClick={handleCloseModal}
-            className="flex-1 px-6 py-3 rounded-xl border-2 border-gray-300 dark:border-gray-600 font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={processing}
-            className="flex-1 px-6 py-3 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 text-white font-semibold hover:from-violet-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl"
-          >
-            {processing ? 'Posting...' : 'Post for Adoption'}
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-)}
+      )}
 
       {/* Filters */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-4 sm:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+                />
               </svg>
               <span className="font-semibold">Filter Pets:</span>
             </div>
@@ -738,7 +915,8 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                     alt={pet.pname}
                     className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                     onError={(e) => {
-                      if (e.currentTarget.src !== PLACEHOLDER) e.currentTarget.src = PLACEHOLDER;
+                      if (e.currentTarget.src !== PLACEHOLDER)
+                        e.currentTarget.src = PLACEHOLDER;
                     }}
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
@@ -748,17 +926,24 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                 <div className="p-5">
                   <div className="flex items-center gap-2 mb-3">
                     <div className="w-8 h-8 flex items-center justify-center bg-gradient-to-br from-violet-400 to-purple-600 rounded-full text-white text-sm font-bold shadow-md">
-                      {pet.user?.name ? pet.user.name.charAt(0).toUpperCase() : 'U'}
+                      {pet.user?.name
+                        ? pet.user.name.charAt(0).toUpperCase()
+                        : 'U'}
                     </div>
                     {pet.user?.name ? (
                       <Link
-                        href={route('profile.show', { name: pet.user.name ?? pet.user.name! })}
+                        href={route('profile.show', {
+                          name: pet.user.name ?? pet.user.name!,
+                        })}
                         className="text-sm font-semibold text-gray-700 dark:text-gray-300 hover:text-violet-600 dark:hover:text-violet-400 transition-colors truncate"
                       >
-                        {pet.user.name.charAt(0).toUpperCase() + pet.user.name.slice(1).toLowerCase()}
+                        {pet.user.name.charAt(0).toUpperCase() +
+                          pet.user.name.slice(1).toLowerCase()}
                       </Link>
                     ) : (
-                      <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 truncate">Unknown</span>
+                      <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 truncate">
+                        Unknown
+                      </span>
                     )}
                   </div>
 
@@ -766,10 +951,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                     {pet.pname}
                   </h3>
 
-
-
-
-
+                  {/* First row: About Me + (for guests) Visit Profile */}
                   <div className="flex gap-2">
                     <Link
                       href={route('adoption.show', pet.id)}
@@ -778,18 +960,58 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                       About me
                     </Link>
 
-                    {!isAuthenticated && (pet.user?.name || pet.user?.name) && (
+                    {!isAuthenticated && pet.user?.name && (
                       <button
                         onClick={() => visitProfile(pet)}
                         className="px-4 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                         title="Visit Profile"
                       >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        <svg
+                          className="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                          />
                         </svg>
                       </button>
                     )}
                   </div>
+
+                  {/* Second row: Owner actions (Edit / Cancel / Delete) */}
+                  {isOwner(pet) && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {pet.status !== 'pending' && (
+                        <button
+                          onClick={() => openEditModal(pet)}
+                          className="flex-1 min-w-[90px] text-center border-2 border-blue-500 text-blue-600 dark:text-blue-300 rounded-xl py-2 text-sm font-semibold hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all"
+                        >
+                          Edit
+                        </button>
+                      )}
+
+                      {pet.status === 'pending' && (
+                        <button
+                          onClick={() => handleCancelPending(pet)}
+                          className="flex-1 min-w-[90px] text-center border-2 border-amber-500 text-amber-600 dark:text-amber-300 rounded-xl py-2 text-sm font-semibold hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-all"
+                        >
+                          Cancel
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => handleDelete(pet)}
+                        className="flex-1 min-w-[90px] text-center border-2 border-rose-500 text-rose-600 dark:text-rose-300 rounded-xl py-2 text-sm font-semibold hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-all"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -799,8 +1021,12 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
             <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-violet-100 to-purple-200 dark:from-gray-700 dark:to-gray-600 rounded-full mb-6">
               <span className="text-5xl">🔍</span>
             </div>
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">No Pets Found</h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-6">Try adjusting your filters or search keyword.</p>
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+              No Pets Found
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              Try adjusting your filters or search keyword.
+            </p>
             <button
               onClick={() => {
                 setActiveCategory('All');

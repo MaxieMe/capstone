@@ -24,8 +24,6 @@ import {
   Check,
   Trash2,
 } from "lucide-react";
-
-// ⬇️ IMPORT BREED LISTS (ayusin mo path kung iba)
 import { DOG_BREEDS, CAT_BREEDS } from "@/components1/breed";
 import { route } from "ziggy-js";
 
@@ -68,7 +66,6 @@ type AuthUser = {
   role: "user" | "admin" | "superadmin";
 };
 
-// all breeds helper
 const ALL_BREEDS = [...DOG_BREEDS, ...CAT_BREEDS];
 
 export default function ManageIndex() {
@@ -118,9 +115,10 @@ export default function ManageIndex() {
 
   // Prefill edit form gamit data ng post
   const openEdit = (post: Adoption) => {
-    // decide kung built-in breed or custom
     const existingBreed = post.breed || "";
-    const isInList = existingBreed && ALL_BREEDS.includes(existingBreed as (typeof ALL_BREEDS)[number]);
+    const isInList =
+      existingBreed &&
+      ALL_BREEDS.includes(existingBreed as (typeof ALL_BREEDS)[number]);
 
     setEditingPost(post);
 
@@ -158,6 +156,9 @@ export default function ManageIndex() {
         color: form.color || null,
         location: form.location || null,
         description: form.description || null,
+
+        // 🔥 importante: ipadala ang kasalukuyang status para pumasa sa validation
+        status: editingPost.status,
       },
       {
         preserveScroll: true,
@@ -191,7 +192,7 @@ export default function ManageIndex() {
     if (status === "adopted") {
       return (
         <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-slate-500/10 text-slate-400 ring-1 ring-slate-500/30">
-        <PawPrint className="w-3 h-3 mr-1" />
+          <PawPrint className="w-3 h-3 mr-1" />
           Adopted
         </span>
       );
@@ -223,13 +224,9 @@ export default function ManageIndex() {
     return c;
   };
 
-  // Breed options depende sa category
   const currentBreedList =
-    form.category === "cat"
-      ? CAT_BREEDS
-      : DOG_BREEDS;
+    form.category === "cat" ? CAT_BREEDS : DOG_BREEDS;
 
-  // Para kung existing breed value hindi kasama sa list, idagdag pa rin natin sa dropdown
   const breedOptions = (() => {
     const base = [...currentBreedList];
     if (form.breed && !base.includes(form.breed as (typeof base)[number])) {
@@ -625,7 +622,7 @@ export default function ManageIndex() {
                   </div>
                 </div>
 
-                {/* Breed (dropdown + custom when "Other / Not Sure") */}
+                {/* Breed */}
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">
                     Breed{" "}

@@ -341,24 +341,27 @@ export default function Show({ pet }: { pet: Pet }) {
                 </div>
 
                 {/* Call to Action Buttons (hidden if owner) */}
-                {!isOwner && (
-                  <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-6">
-                    <button
-                      onClick={() => setInquiryOpen(true)}
-                      className="flex-1 text-center bg-gradient-to-r from-blue-500 to-blue-500 hover:from-blue-600 hover:to-blue-600 text-white font-bold px-6 sm:px-8 py-3 sm:py-4 rounded-2xl transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-105"
-                    >
-                      Adopt me
-                    </button>
-                    {pet.status === 'available' && (
-                      <button
-                        onClick={() => setSponsorshipOpen(true)}
-                        className="flex-1 text-center bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white font-bold px-6 sm:px-8 py-3 sm:py-4 rounded-2xl transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-105"
-                      >
-                        Sponsor me
-                      </button>
-                    )}
-                  </div>
-                )}
+{!isOwner && (
+  <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-6">
+    {/* ADOPT ME → only when AVAILABLE */}
+    {pet.status === 'available' && (
+      <button
+        onClick={() => setInquiryOpen(true)}
+        className="flex-1 text-center bg-gradient-to-r from-blue-500 to-blue-500 hover:from-blue-600 hover:to-blue-600 text-white font-bold px-6 sm:px-8 py-3 sm:py-4 rounded-2xl transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-105"
+      >
+        Adopt me
+      </button>
+    )}
+
+    {/* SPONSOR ME → always shown for non-owners */}
+    <button
+      onClick={() => setSponsorshipOpen(true)}
+      className="flex-1 text-center bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white font-bold px-6 sm:px-8 py-3 sm:py-4 rounded-2xl transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-105"
+    >
+      Sponsor me
+    </button>
+  </div>
+)}
 
                 {/* Info Box for Adoption Ready — ONLY when NOT owner */}
                 {!isOwner && pet.status === 'available' && (

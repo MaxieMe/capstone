@@ -33,7 +33,7 @@ class AdoptionInquiryController extends Controller
         // Save inquiry sa DB
         $inq = AdoptionInquiry::create([
             'adoption_id'     => $adoption->id,
-            'requester_id'    => optional($request->user())->id,
+            'requester_id'    => optional($request->user())->id, // guest = null, ok lang
             'requester_name'  => $validated['name'],
             'requester_email' => $validated['email'],
             'requester_phone' => $validated['phone'] ?? null,

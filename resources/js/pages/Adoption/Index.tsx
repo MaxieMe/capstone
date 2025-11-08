@@ -78,7 +78,6 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
       ? (filters.gender.toLowerCase() === 'male' ? 'Male' : 'Female')
       : 'All') as any
   );
-  const [search, setSearch] = useState(filters?.q ?? '');
 
   // guest search
   const guestSearchForm = useForm({ q: filters?.q ?? '' });
@@ -132,13 +131,14 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
     image: null as File | null,
   });
 
+  // full breed list para sa edit logic
+  const ALL_BREEDS = [...DOG_BREEDS, ...CAT_BREEDS];
+
   const breedOptions = useMemo(() => {
     if (data.category === 'dog') return DOG_BREEDS;
     if (data.category === 'cat') return CAT_BREEDS;
     return [];
   }, [data.category]);
-
-  // ❌ WALA NANG useEffect DITO na nagre-reset ng breed/custom_breed
 
   const isOwner = (pet: Pet) =>
     !!currentUserId && pet.user?.id === currentUserId;
@@ -154,13 +154,21 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
     setEditingPet(pet);
     clearErrors();
 
+    const existingBreed = pet.breed || '';
+    const isInList =
+      existingBreed &&
+      ALL_BREEDS.includes(existingBreed as (typeof ALL_BREEDS)[number]);
+
     setData('pname', pet.pname || '');
     setData('gender', pet.gender || '');
     setData('age', pet.age != null ? String(pet.age) : '');
     setData('age_unit', (pet.age_unit as 'months' | 'years') || 'months');
     setData('category', (pet.category as 'cat' | 'dog' | '') || '');
-    setData('breed', pet.breed || '');
-    setData('custom_breed', '');
+
+    // kung hindi kasama sa list → treat as "Other / Not Sure" + custom_breed
+    setData('breed', isInList ? existingBreed : existingBreed ? 'Other / Not Sure' : '');
+    setData('custom_breed', !isInList ? existingBreed : '');
+
     setData('color', pet.color || '');
     setData('location', pet.location || '');
     setData('description', pet.description || '');
@@ -179,14 +187,15 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    const finalBreed =
+      data.breed === 'Other / Not Sure'
+        ? (data.custom_breed || 'Other / Not Sure')
+        : data.breed;
+
     if (editingPet) {
-      // EDIT MODE → send PUT via _method spoofing
       transform((formData) => ({
         ...formData,
-        breed:
-          formData.breed === 'Other / Not Sure'
-            ? (formData as any).custom_breed || 'Other / Not Sure'
-            : formData.breed,
+        breed: finalBreed,
         _method: 'PUT',
       }));
 
@@ -197,13 +206,9 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
         },
       });
     } else {
-      // CREATE MODE
       transform((formData) => ({
         ...formData,
-        breed:
-          formData.breed === 'Other / Not Sure'
-            ? (formData as any).custom_breed || 'Other / Not Sure'
-            : formData.breed,
+        breed: finalBreed,
       }));
 
       post(route('adoption.store'), {
@@ -233,43 +238,6 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
     });
   };
 
-  // helpers
-  const computeLifeStage = (category?: string, age?: number, unit?: string) => {
-    if (!category || age == null) return null;
-    const months = (unit === 'months' ? age : (age || 0) * 12) as number;
-    const type = (category || '').toLowerCase();
-    if (type === 'dog') {
-      if (months < 6) return 'Puppy';
-      if (months < 9) return 'Junior';
-      if (months < 78) return 'Adult';
-      if (months < 117) return 'Mature';
-      if (months < 156) return 'Senior';
-      return 'Geriatric';
-    } else if (type === 'cat') {
-      if (months < 6) return 'Kitten';
-      if (months < 24) return 'Junior';
-      if (months < 72) return 'Prime';
-      if (months < 120) return 'Mature';
-      if (months < 168) return 'Senior';
-      return 'Geriatric';
-    }
-    return null;
-  };
-
-  const ageText = (age?: number, unit?: string) => {
-    if (age == null) return 'N/A';
-    const u = unit || 'years';
-    const label =
-      u === 'months'
-        ? age === 1
-          ? 'month'
-          : 'months'
-        : age === 1
-        ? 'year'
-        : 'years';
-    return `${age} ${label}`;
-  };
-
   const getName = (u?: ProfileUser | null) =>
     (u?.name && u.name.trim()) || '';
 
@@ -281,22 +249,6 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
   const prevLink = adoption?.links?.[0];
   const nextLink = adoption?.links?.[adoption?.links?.length - 1];
 
-  // search submit (server-side)
-  const doSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    router.visit(
-      route('adoption.index', {
-        q: search || undefined,
-        category: activeCategory !== 'All' ? activeCategory : undefined,
-        gender:
-          activeGender !== 'All'
-            ? activeGender.toLowerCase()
-            : undefined,
-      }),
-      { preserveScroll: true, preserveState: true }
-    );
-  };
-
   // guest directory search
   const submitGuestSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -306,7 +258,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
     });
   };
 
-  // ===================== GUEST VIEW =====================
+  /* ===================== GUEST VIEW ===================== */
   if (!isAuthenticated) {
     const users: GuestUser[] = Array.isArray(guestUsers?.data)
       ? guestUsers!.data
@@ -472,7 +424,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
     );
   }
 
-  // ===================== AUTHENTICATED VIEW =====================
+  /* ===================== AUTHENTICATED VIEW ===================== */
   return (
     <AppLayout breadcrumbs={breadcrumbs}>
       <Head title="Pet Adoption" />
@@ -569,7 +521,8 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                     onChange={(e) => {
                       const val = e.target.value as 'cat' | 'dog' | '';
                       setData('category', val);
-                      // NOTE: hindi na natin nirereset yung breed dito para sa Edit
+                      setData('breed', '');
+                      setData('custom_breed', '');
                     }}
                     className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none"
                     required
@@ -811,7 +764,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
         </div>
       )}
 
-      {/* Filters */}
+      {/* ✅ OLD FILTER UI (category + gender pills lang) */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-4 sm:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -880,7 +833,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
         </div>
       </div>
 
-      {/* Pet Cards Grid */}
+      {/* ✅ OLD CARD DISPLAY STYLE */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
         {filteredPets.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -951,7 +904,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                     {pet.pname}
                   </h3>
 
-                  {/* First row: About Me + (for guests) Visit Profile */}
+                  {/* First row: About Me + Visit Profile (for guests only) */}
                   <div className="flex gap-2">
                     <Link
                       href={route('adoption.show', pet.id)}
@@ -1025,13 +978,12 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
               No Pets Found
             </h3>
             <p className="text-gray-600 dark:text-gray-400 mb-6">
-              Try adjusting your filters or search keyword.
+              Try adjusting your filters.
             </p>
             <button
               onClick={() => {
                 setActiveCategory('All');
                 setActiveGender('All');
-                setSearch('');
                 router.visit(route('adoption.index'));
               }}
               className="inline-flex items-center gap-2 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white font-semibold px-6 py-3 rounded-xl transition-all shadow-lg"

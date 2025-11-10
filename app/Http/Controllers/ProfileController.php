@@ -51,17 +51,19 @@ class ProfileController extends Controller
 
         /**
          * Visibility rules:
-         * - Guest / ibang normal user: available lang
          * - Owner (non-admin): lahat (kasama rejected, para makita reason)
          * - Admin / superadmin: lahat (for moderation)
+         * - Guest / ibang normal user:
+         *      → "available" + "pending"
+         *      → para kahit nag-inquire na sila at naging pending, makikita pa rin nila
          */
         if ($isAdmin) {
             // admins see all statuses
         } elseif ($isOwner) {
             // owner sees everything → no filter
         } else {
-            // guests / other users only see available
-            $query->where('status', 'available');
+            // guests / other users: available + pending
+            $query->whereIn('status', ['available', 'pending']);
         }
 
         $pets = $query->get();
@@ -72,6 +74,7 @@ class ProfileController extends Controller
             $lifeStage = $this->computeLifeStage($pet->category, $pet->age, $pet->age_unit);
             $gender    = $pet->gender ? strtolower($pet->gender) : null;
 
+            // Ensure may image_url (gaya sa AdoptionController@index)
             $imageUrl = $pet->image_path
                 ? asset('storage/' . $pet->image_path)
                 : null;

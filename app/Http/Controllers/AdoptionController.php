@@ -160,50 +160,62 @@ class AdoptionController extends Controller
      * Show single adoption post.
      */
     public function show(Adoption $adoption, Request $request)
-    {
-        $user = $request->user();
+{
+    $user       = $request->user();
+    $viewerId   = $user?->id;
+    $viewerRole = $user->role ?? null;
 
-        if (
-            $adoption->status !== 'available' &&
-            (!$user || $user->id !== $adoption->user_id)
-        ) {
-            abort(404);
-        }
+    $isOwner = $viewerId === $adoption->user_id;
+    $isAdmin = in_array($viewerRole, ['admin', 'superadmin'], true);
 
-        $ageText   = $this->ageText($adoption->age, $adoption->age_unit);
-        $lifeStage = $this->computeLifeStage($adoption->category, $adoption->age, $adoption->age_unit);
-        $gender    = $adoption->gender ? strtolower($adoption->gender) : null;
-
-        $imageUrl = $adoption->image_path
-            ? asset('storage/' . $adoption->image_path)
-            : null;
-
-        $pet = (object)[
-            'id'          => $adoption->id,
-            'pname'       => $adoption->pname,
-            'user'        => $adoption->user ? (object)[
-                'id'   => $adoption->user->id,
-                'name' => $adoption->user->name,
-            ] : null,
-            'gender'      => $gender,
-            'age'         => $adoption->age,
-            'age_unit'    => $adoption->age_unit,
-            'category'    => $adoption->category,
-            'breed'       => $adoption->breed,
-            'color'       => $adoption->color,
-            'location'    => $adoption->location,
-            'description' => $adoption->description,
-            'status'      => $adoption->status,
-            'created_at'  => $adoption->created_at?->toISOString(),
-            'image_url'   => $imageUrl,
-            'age_text'    => $ageText,
-            'life_stage'  => $lifeStage,
-        ];
-
-        return Inertia::render('Adoption/Show', [
-            'pet' => $pet,
-        ]);
+    // ✅ Visibility rules for show():
+    // - Owner or Admin: pwedeng makita kahit anong status
+    // - Guest / ibang user:
+    //     → pwedeng makita kung "available" or "pending"
+    //     → iba pang status (waiting_for_approval, rejected, adopted) → 404
+    if (
+        !$isOwner &&
+        !$isAdmin &&
+        !in_array($adoption->status, ['available', 'pending'], true)
+    ) {
+        abort(404);
     }
+
+    $ageText   = $this->ageText($adoption->age, $adoption->age_unit);
+    $lifeStage = $this->computeLifeStage($adoption->category, $adoption->age, $adoption->age_unit);
+    $gender    = $adoption->gender ? strtolower($adoption->gender) : null;
+
+    $imageUrl = $adoption->image_path
+        ? asset('storage/' . $adoption->image_path)
+        : null;
+
+    $pet = (object)[
+        'id'          => $adoption->id,
+        'pname'       => $adoption->pname,
+        'user'        => $adoption->user ? (object)[
+            'id'   => $adoption->user->id,
+            'name' => $adoption->user->name,
+        ] : null,
+        'gender'      => $gender,
+        'age'         => $adoption->age,
+        'age_unit'    => $adoption->age_unit,
+        'category'    => $adoption->category,
+        'breed'       => $adoption->breed,
+        'color'       => $adoption->color,
+        'location'    => $adoption->location,
+        'description' => $adoption->description,
+        'status'      => $adoption->status,
+        'created_at'  => $adoption->created_at?->toISOString(),
+        'image_url'   => $imageUrl,
+        'age_text'    => $ageText,
+        'life_stage'  => $lifeStage,
+    ];
+
+    return Inertia::render('Adoption/Show', [
+        'pet' => $pet,
+    ]);
+}
+
 
     /**
      * POST /adoption

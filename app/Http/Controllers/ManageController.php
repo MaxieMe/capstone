@@ -11,19 +11,21 @@ class ManageController extends Controller
 {
     /**
      * Show list of adoption posts for admin/superadmin (approval, edit, delete).
+     * ✅ Lahat ng status (kasama rejected) lalabas dito,
+     *    maliban na lang kung ifi-filter mo via ?status=...
      */
     public function index(Request $request)
     {
         $query = Adoption::query()
             ->with('user')
-            // ✅ Huwag ipakita ang REJECTED sa manage list
-            ->where('status', '!=', 'rejected')
             ->orderByDesc('created_at');
 
+        // Optional filter by status (waiting_for_approval, available, pending, adopted, rejected)
         if ($request->filled('status')) {
             $query->where('status', $request->string('status'));
         }
 
+        // Optional search
         if ($request->filled('q')) {
             $q = $request->string('q');
             $query->where(function ($sub) use ($q) {
@@ -51,7 +53,8 @@ class ManageController extends Controller
     {
         // from waiting_for_approval → available
         $adoption->update([
-            'status' => 'available',
+            'status'        => 'available',
+            'reject_reason' => null,
         ]);
 
         return back()->with('success', 'Adoption post approved.');
@@ -61,19 +64,18 @@ class ManageController extends Controller
      * Reject a post.
      */
     public function reject(Adoption $adoption, Request $request)
-{
-    $data = $request->validate([
-        'reject_reason' => ['nullable', 'string', 'max:500'],
-    ]);
+    {
+        $data = $request->validate([
+            'reject_reason' => ['nullable', 'string', 'max:500'],
+        ]);
 
-    $adoption->status = 'rejected';
-    $adoption->reject_reason = $data['reject_reason'] ?? null;
-    $adoption->save();
+        $adoption->update([
+            'status'        => 'rejected',
+            'reject_reason' => $data['reject_reason'] ?? '',
+        ]);
 
-    return back()->with('success', 'Adoption post rejected.');
-}
-
-
+        return back()->with('success', 'Adoption post rejected.');
+    }
 
     /**
      * Update adoption post (admin/superadmin edit).
@@ -82,15 +84,15 @@ class ManageController extends Controller
     public function update(Request $request, Adoption $adoption)
     {
         $data = $request->validate([
-            'pname'      => ['required', 'string', 'max:255'],
-            'gender'     => ['required', 'in:male,female'],
-            'age'        => ['required', 'integer', 'min:1'],
-            'age_unit'   => ['required', 'in:months,years'],
-            'category'   => ['required', 'in:cat,dog'],
-            'breed'      => ['nullable', 'string', 'max:255'],
-            'color'      => ['nullable', 'string', 'max:255'],
-            'location'   => ['nullable', 'string', 'max:255'],
-            'description'=> ['nullable', 'string'],
+            'pname'       => ['required', 'string', 'max:255'],
+            'gender'      => ['required', 'in:male,female'],
+            'age'         => ['required', 'integer', 'min:1'],
+            'age_unit'    => ['required', 'in:months,years'],
+            'category'    => ['required', 'in:cat,dog'],
+            'breed'       => ['nullable', 'string', 'max:255'],
+            'color'       => ['nullable', 'string', 'max:255'],
+            'location'    => ['nullable', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
         ]);
 
         $adoption->update($data);

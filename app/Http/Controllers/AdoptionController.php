@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Adoption;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -18,7 +19,8 @@ class AdoptionController extends Controller
     {
         $user = $request->user();
 
-        $query = Adoption::query()
+        // ------------------ PETS QUERY (para sa auth view) ------------------
+        $petQuery = Adoption::query()
             ->with(['user:id,name'])
             ->orderByDesc('created_at');
 
@@ -26,23 +28,23 @@ class AdoptionController extends Controller
         // - Guest: available lang
         // - Auth user: available + pending
         if (!$user) {
-            $query->where('status', 'available');
+            $petQuery->where('status', 'available');
         } else {
-            $query->whereIn('status', ['available', 'pending']);
+            $petQuery->whereIn('status', ['available', 'pending']);
         }
 
         // Optional filters (category, gender)
         if ($request->filled('category')) {
-            $query->where('category', $request->string('category'));
+            $petQuery->where('category', $request->string('category'));
         }
 
         if ($request->filled('gender')) {
-            $query->where('gender', strtolower($request->string('gender')));
+            $petQuery->where('gender', strtolower($request->string('gender')));
         }
 
-        $adoptions = $query->paginate(12)->withQueryString();
+        $adoptions = $petQuery->paginate(12)->withQueryString();
 
-        // Transform: attach age_text, life_stage, image_url
+        // Transform pets → attach age_text, life_stage, image_url
         $adoptions->getCollection()->transform(function (Adoption $pet) {
             $ageText   = $this->ageText($pet->age, $pet->age_unit);
             $lifeStage = $this->computeLifeStage($pet->category, $pet->age, $pet->age_unit);
@@ -75,10 +77,78 @@ class AdoptionController extends Controller
             ];
         });
 
-        // Guest vs Auth view hinahandle sa front-end (Adoption/Index.tsx)
+        // ------------------ GUEST USERS QUERY (para sa guest view) ------------------
+        $guestUsers = null;
+
+        if (!$user) {
+            $guestUsers = User::query()
+                ->whereHas('adoptions', function ($q) {
+                    $q->where('status', 'available');
+                })
+                ->when(
+                    $request->filled('q'),
+                    function ($q) use ($request) {
+                        $search = $request->string('q');
+                        $q->where('name', 'like', "%{$search}%");
+                    }
+                )
+                // Kukunin natin ang *latest available pet* per user
+                ->with([
+                    'adoptions' => function ($q) {
+                        $q->where('status', 'available')
+                            ->latest()
+                            ->take(1);
+                    },
+                ])
+                ->withCount([
+                    'adoptions as available_posts_count' => function ($q) {
+                        $q->where('status', 'available');
+                    },
+                    'adoptions as total_posts_count',
+                ])
+                ->orderBy('name')
+                ->paginate(12)
+                ->withQueryString();
+
+            // Transform users → may featured_pet na may image_url
+            $guestUsers->getCollection()->transform(function (User $u) {
+                $featured = $u->adoptions->first(); // latest available pet
+                $featuredPet = null;
+
+                if ($featured) {
+                    $ageText   = $this->ageText($featured->age, $featured->age_unit);
+                    $lifeStage = $this->computeLifeStage($featured->category, $featured->age, $featured->age_unit);
+
+                    $imageUrl = $featured->image_path
+                        ? asset('storage/' . $featured->image_path)
+                        : null;
+
+                    $featuredPet = (object)[
+                        'id'         => $featured->id,
+                        'pname'      => $featured->pname,
+                        'image_url'  => $imageUrl,
+                        'location'   => $featured->location,
+                        'category'   => $featured->category,
+                        'age_text'   => $ageText,
+                        'life_stage' => $lifeStage,
+                    ];
+                }
+
+                return (object)[
+                    'id'                     => $u->id,
+                    'name'                   => $u->name,
+                    'available_posts_count'  => $u->available_posts_count,
+                    'total_posts_count'      => $u->total_posts_count,
+                    'featured_pet'           => $featuredPet,
+                ];
+            });
+        }
+
         return Inertia::render('Adoption/Index', [
-            'adoption' => $adoptions,
-            'filters'  => [
+            'adoption'   => $adoptions,
+            'guestUsers' => $guestUsers,
+            'filters'    => [
+                'q'        => $request->input('q'),
                 'category' => $request->input('category'),
                 'gender'   => $request->input('gender'),
             ],
@@ -93,7 +163,6 @@ class AdoptionController extends Controller
     {
         $user = $request->user();
 
-        // Basic visibility rule (pwede mong higpitan pa kung gusto mo)
         if (
             $adoption->status !== 'available' &&
             (!$user || $user->id !== $adoption->user_id)
@@ -160,10 +229,9 @@ class AdoptionController extends Controller
             'image'       => ['required', 'image', 'max:4096'],
         ]);
 
-        // Upload image
         $path = $request->file('image')->store('adoptions', 'public');
 
-        $adoption = Adoption::create([
+        Adoption::create([
             'user_id'     => $user->id,
             'pname'       => $data['pname'],
             'gender'      => strtolower($data['gender']),
@@ -183,10 +251,6 @@ class AdoptionController extends Controller
             ->with('success', 'Post submitted for approval.');
     }
 
-    /**
-     * GET /adoption/{adoption}/edit
-     * (Hindi na actually ginagamit kasi modal na sa profile, pero iwan natin kung sakali.)
-     */
     public function edit(Request $request, Adoption $adoption)
     {
         $user = $request->user();
@@ -198,24 +262,11 @@ class AdoptionController extends Controller
             abort(403);
         }
 
-        // Kung gusto mong gumamit ng hiwalay na page, dito mo ipapasa yung pet.
-        // Pero currently modal sa Profile page na ang gamit mo.
         return Inertia::render('Adoption/Edit', [
             'adoption' => $adoption,
         ]);
     }
 
-    /**
-     * PUT /adoption/{adoption}
-     * User update ng post (modal sa Profile page).
-     *
-     * RULES:
-     * - Owner lang (o admin/superadmin) ang pwedeng mag-update.
-     * - Pag OWNER at ang dating status ay "rejected", pagkatapos mag-edit:
-     *     → status = "waiting_for_approval"
-     *     → reject_reason = null
-     * - Pag OWNER at ibang status (available/pending/adopted), ideally di ka na nagpapakita ng Edit button sa front-end.
-     */
     public function update(Request $request, Adoption $adoption)
     {
         $user = $request->user();
@@ -240,45 +291,34 @@ class AdoptionController extends Controller
             'image'       => ['nullable', 'image', 'max:4096'],
         ]);
 
-        // Upload new image if any
         if ($request->hasFile('image')) {
             if ($adoption->image_path) {
                 Storage::disk('public')->delete($adoption->image_path);
             }
-            $path                  = $request->file('image')->store('adoptions', 'public');
-            $data['image_path']    = $path;
+            $path               = $request->file('image')->store('adoptions', 'public');
+            $data['image_path'] = $path;
         }
 
-        // Normalize gender
         $data['gender'] = strtolower($data['gender']);
 
-        // ✅ STATUS LOGIC:
-        // Owner editing a rejected post → balik sa waiting_for_approval
         if ($user->id === $adoption->user_id) {
             if ($adoption->status === 'rejected') {
                 $data['status']        = 'waiting_for_approval';
                 $data['reject_reason'] = null;
             } else {
-                // For safety, huwag galawin ang status sa ibang cases.
                 unset($data['status'], $data['reject_reason']);
             }
         } else {
-            // Admin/superadmin update via this method:
-            // by default di natin ginagalaw status dito (may ManageController ka na for approvals)
             unset($data['status'], $data['reject_reason']);
         }
 
         $adoption->update($data);
 
-        // Usually balik sa profile page
         return redirect()
             ->route('profile.show', ['name' => $user->name])
             ->with('success', 'Post updated.');
     }
 
-    /**
-     * POST /adoption/{adoption}/mark-adopted
-     */
     public function markAdopted(Request $request, Adoption $adoption)
     {
         $user = $request->user();
@@ -297,10 +337,6 @@ class AdoptionController extends Controller
         return back()->with('success', 'Marked as adopted.');
     }
 
-    /**
-     * POST /adoption/{adoption}/cancel
-     * Owner cancels a pending adoption → back to available.
-     */
     public function cancel(Request $request, Adoption $adoption)
     {
         $user = $request->user();
@@ -317,9 +353,6 @@ class AdoptionController extends Controller
         return back()->with('success', 'Pending adoption cancelled.');
     }
 
-    /**
-     * DELETE /adoption/{adoption}
-     */
     public function destroy(Request $request, Adoption $adoption)
     {
         $user = $request->user();
@@ -340,9 +373,7 @@ class AdoptionController extends Controller
         return back()->with('success', 'Post deleted.');
     }
 
-    /* -----------------------------------------------------------------
-     |  Helpers (IMPORTANT: iisang kopya lang dito, wag dodoble)
-     * ----------------------------------------------------------------- */
+    /* ----------------------------- Helpers ----------------------------- */
 
     private function ageText(?int $age, ?string $unit): string
     {

@@ -714,13 +714,6 @@ export default function ProfileShow({ profile, pets }: PageProps) {
                     >
                       About me
                     </Link>
-                    <Link
-                      href={route('adoption.index')}
-                      className="px-4 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                      title="Browse more"
-                    >
-                      🐾
-                    </Link>
                   </div>
 
                   {/* Owner actions */}

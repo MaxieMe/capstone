@@ -48,18 +48,27 @@ type Pet = {
   is_approved?: boolean;
 };
 
+// ✅ Match sa backend: may featured_pet object
 type GuestUser = {
   id: number;
   name: string;
-  cover_url?: string | null;
-  available_posts_count?: number;
-  total_posts_count?: number;
+  available_posts_count: number;
+  total_posts_count: number;
+  featured_pet?: {
+    id: number;
+    pname: string;
+    image_url?: string | null;
+    location?: string | null;
+    category?: string | null;
+    age_text?: string | null;
+    life_stage?: string | null;
+  } | null;
 };
 
 type PaginationLink = { url: string | null; label: string; active: boolean };
 
 type PageProps = {
-  adoption: any;
+  adoption: Paginated<Pet> | any;
   guestUsers?: { data: GuestUser[]; links: PaginationLink[] } | null;
   filters?: { q?: string; category?: string; gender?: string };
 };
@@ -91,14 +100,14 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
   // guest search (for guest user directory)
   const guestSearchForm = useForm({ q: filters?.q ?? '' });
 
-  // pets list (used for authenticated view)
+  // pets list (for authenticated adoption view)
   const list: Pet[] = Array.isArray(adoption?.data) ? adoption.data : [];
 
   const filteredPets = useMemo(() => {
     return list
       .filter((pet) => {
-        // Auth: kung ano binigay ng backend (available + pending)
-        // Guest: available lang (pero backend na mismo nag fi-filter, extra guard lang)
+        // Auth: backend na nagbigay ng available + pending
+        // Guest: available lang (extra guard lang, kahit backend filtered na)
         const availableOnly = isAuthenticated
           ? true
           : (pet.status || '').toLowerCase() === 'available';
@@ -107,10 +116,12 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
           activeCategory === 'All' ||
           (pet.category &&
             pet.category.toLowerCase() === activeCategory.toLowerCase());
+
         const genderMatch =
           activeGender === 'All' ||
           (pet.gender &&
             pet.gender.toLowerCase() === activeGender.toLowerCase());
+
         return availableOnly && categoryMatch && genderMatch;
       })
       .sort(
@@ -162,7 +173,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
     setShowModal(true);
   };
 
-  // NOTE: pwede mo pa ring iwan itong openEditModal kung gusto mong balikan balang araw
+  // Open edit modal (hindi ginagamit sa adoption page ngayon – profile modal ang primary)
   const openEditModal = (pet: Pet) => {
     setEditingPet(pet);
     clearErrors();
@@ -208,8 +219,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
         : data.breed;
 
     if (editingPet) {
-      // Ginagamit mo na lang ang edit sa Profile page modal,
-      // pero iwan natin logic just in case
+      // edit → PUT /adoption/{id}
       transform((formData) => ({
         ...formData,
         breed: finalBreed,
@@ -223,6 +233,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
         },
       });
     } else {
+      // create → POST /adoption
       transform((formData) => ({
         ...formData,
         breed: finalBreed,
@@ -257,11 +268,6 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
 
   const getName = (u?: ProfileUser | null) =>
     (u?.name && u.name.trim()) || '';
-
-  const visitProfile = (pet: Pet) => {
-    const name = getName(pet.user);
-    if (name) router.visit(route('profile.show', { name }));
-  };
 
   const prevLink = adoption?.links?.[0];
   const nextLink = adoption?.links?.[adoption?.links?.length - 1];
@@ -330,6 +336,9 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {users.map((u) => {
                   const name = (u.name && u.name.trim()) || '';
+                  const featuredImage =
+                    u.featured_pet?.image_url || PLACEHOLDER;
+
                   return (
                     <div
                       key={u.id}
@@ -337,7 +346,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                     >
                       <div className="relative h-40">
                         <img
-                          src={u.cover_url || PLACEHOLDER}
+                          src={featuredImage}
                           alt={u.name}
                           className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                           onError={(e) => {
@@ -862,7 +871,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
             {filteredPets.map((pet) => (
               <div
                 key={pet.id}
-                className="group relative bg-white dark:bg-gray-800 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden transform hover:-translate-y-2"
+                className="group relative bg-white dark:bg_gray-800 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden transform hover:-translate-y-2"
               >
                 {/* Status */}
                 <div className="absolute top-3 right-3 z-10">

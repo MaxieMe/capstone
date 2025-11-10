@@ -20,7 +20,7 @@ class RoleController extends Controller
             ->paginate(10)
             ->withQueryString();
 
-        return Inertia::render('Admin/Users', [
+        return Inertia::render('Manage/Users', [
             'users' => $users,
             'auth' => [
                 'user' => Auth::user(),
@@ -95,17 +95,7 @@ class RoleController extends Controller
         return redirect()->route('admin.users')->with('success', "{$user->name} updated successfully!");
     }
 
-    /**
-     * Superadmin view.
-     */
-    public function superadmin()
-    {
-        return Inertia::render('SuperAdmin/System', [
-            'auth' => [
-                'user' => auth()->user(),
-            ],
-        ]);
-    }
+
 
     /**
      * Permanently delete a user (Superadmin only, separate from reject).

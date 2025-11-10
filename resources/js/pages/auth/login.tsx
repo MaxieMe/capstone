@@ -83,6 +83,7 @@ export default function Login({
                                         type={showPassword ? 'text' : 'password'}
                                         name="password"
                                         required
+                                        tabIndex={2}
                                         autoComplete="current-password"
                                         placeholder="Password"
                                         className="peer pr-10"

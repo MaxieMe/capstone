@@ -7,7 +7,6 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ManageController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RoleController;
-use App\Http\Controllers\SystemController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -56,6 +55,7 @@ Route::middleware(['auth', 'verified', 'approved'])->group(function () {
 
     // Profile
     Route::get('/profile', [ProfileController::class, 'index'])->name('profile.index');
+    
 
     // Adoption actions (only logged-in & approved)
     Route::post('/adoption', [AdoptionController::class, 'store'])->name('adoption.store');
@@ -87,13 +87,13 @@ Route::middleware(['auth', 'verified', 'approved'])->group(function () {
 Route::middleware(['auth', 'verified', 'approved', 'role:admin,superadmin'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-    Route::get('/users', [RoleController::class, 'admin'])->name('admin.users');
+    Route::get('/manage_users', [RoleController::class, 'admin'])->name('admin.users');
     Route::post('/users/{user}/approve', [RoleController::class, 'approve'])->name('admin.users.approve');
     Route::post('/users/{user}/reject', [RoleController::class, 'reject'])->name('admin.users.reject');
     Route::put('/users/{user}', [RoleController::class, 'update'])->name('admin.users.update');
     Route::delete('/users/{user}', [RoleController::class, 'destroy'])->name('admin.users.destroy');
 
-    Route::get('/manage', [ManageController::class, 'index'])->name('manage.index');
+    Route::get('/manage_posts', [ManageController::class, 'index'])->name('manage.index');
 
     Route::post('/manage/adoption/{adoption}/approve', [ManageController::class, 'approve'])
         ->name('manage.adoption.approve');
@@ -107,8 +107,8 @@ Route::middleware(['auth', 'verified', 'approved', 'role:admin,superadmin'])->gr
     Route::delete('/manage/adoption/{adoption}', [ManageController::class, 'destroy'])
         ->name('manage.adoption.destroy');
 
-    Route::get('/history', [ManageController::class, 'history'])
-        ->name('manage.adoption.history');
+    Route::get('/transaction_history', [ManageController::class, 'history'])
+        ->name('manage.transaction.history');
 });
 
 /*
@@ -116,16 +116,5 @@ Route::middleware(['auth', 'verified', 'approved', 'role:admin,superadmin'])->gr
 | Superadmin
 |--------------------------------------------------------------------------
 */
-Route::middleware(['auth', 'verified', 'approved', 'role:superadmin'])->group(function () {
-    Route::get('/system', [RoleController::class, 'superadmin'])->name('superadmin');
-
-    Route::get('/system', [SystemController::class, 'index'])->name('system.index');
-
-    Route::post('/system/maintenance', [SystemController::class, 'maintenance'])->name('system.maintenance');
-    Route::post('/system/cache/clear', [SystemController::class, 'cacheClear'])->name('system.cache.clear');
-    Route::post('/system/cache/warm',  [SystemController::class, 'cacheWarm'])->name('system.cache.warm');
-    Route::post('/system/queue/restart', [SystemController::class, 'queueRestart'])->name('system.queue.restart');
-    Route::post('/system/storage/link', [SystemController::class, 'storageLink'])->name('system.storage.link');
-});
 
 require __DIR__.'/settings.php';

@@ -53,28 +53,23 @@ const adminNavItems: NavItem[] = [
     },
     {
         title: 'Manage Users',
-        href: '/users',
+        href: '/manage_users',
         icon: Settings,
     },
     {
         title: 'Manage Post',
-        href: '/manage',
+        href: '/manage_posts',
         icon: Newspaper,
     },
     {
-        title: 'History',
-        href: '/history',
+        title: 'Transaction History',
+        href: '/transaction_history',
         icon: History,
     },
 ];
 
 const superAdminNavItems: NavItem[] = [
 
-    {
-        title: 'System Controls',
-        href: '/system',
-        icon: Shield,
-    },
 ];
 
     let roleBasedNavItems = [...mainNavItems];

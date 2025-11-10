@@ -1,10 +1,15 @@
-// resources/js/pages/Profile/Show.tsx
+// resources/js/Pages/Profile/Show.tsx
 import React, { useMemo, useState } from 'react';
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, Link, usePage, useForm, router } from '@inertiajs/react';
 import { route } from 'ziggy-js';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
-import adoption from '@/routes/adoption';
+import { CAT_BREEDS, DOG_BREEDS } from '@/components1/breed';
+import { DisableScroll } from '@/components1/disable-scroll';
+import { XButton } from '@/components1/x-button';
+import { PlusButton } from '@/components1/plus-button';
+
+type Role = 'user' | 'admin' | 'superadmin';
 
 type ProfileUser = {
   id: number;
@@ -24,10 +29,18 @@ type Pet = {
   location?: string | null;
   description?: string | null;
   image_url?: string | null;
-  status?: 'available' | 'pending' | 'adopted' | string | null;
+  status?:
+    | 'available'
+    | 'pending'
+    | 'adopted'
+    | 'waiting_for_approval'
+    | 'rejected'
+    | string
+    | null;
   created_at?: string | null;
   life_stage?: string | null;
   age_text?: string | null;
+  reject_reason?: string | null;
 };
 
 type PageProps = {
@@ -39,59 +52,167 @@ type PageProps = {
 const PLACEHOLDER =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="420"><rect width="100%" height="100%" fill="%23e5e7eb"/><text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle" fill="%239ca3af" font-size="24" font-family="system-ui">🐾</text><text x="50%" y="60%" dominant-baseline="middle" text-anchor="middle" fill="%239ca3af" font-size="16" font-family="system-ui">No Photo Available</text></svg>';
 
-function computeLifeStage(category?: string | null, age?: number | null, unit?: string | null) {
-  if (!category || age == null) return null;
-  const months = unit === 'months' ? age : (age || 0) * 12;
-  const type = (category || '').toLowerCase();
-  if (type === 'dog') {
-    if (months < 6) return 'Puppy';
-    if (months < 9) return 'Junior';
-    if (months < 78) return 'Adult';
-    if (months < 117) return 'Mature';
-    if (months < 156) return 'Senior';
-    return 'Geriatric';
-  }
-  if (type === 'cat') {
-    if (months < 6) return 'Kitten';
-    if (months < 24) return 'Junior';
-    if (months < 72) return 'Prime';
-    if (months < 120) return 'Mature';
-    if (months < 168) return 'Senior';
-    return 'Geriatric';
-  }
-  return null;
-}
-
-function ageText(age?: number | null, unit?: string | null) {
-  if (age == null) return 'N/A';
-  const u = unit === 'months' ? 'month' : 'year';
-  return `${age} ${age === 1 ? u : `${u}s`}`;
-}
-
 export default function ProfileShow({ profile, pets }: PageProps) {
   const page = usePage().props as any;
-  const isOwner = page?.auth?.user?.id === profile.id;
+  const auth = page?.auth ?? {};
+  const viewer = auth?.user ?? null;
 
-  const name =
-    (profile.name && profile.name.trim()) ||
-    '';
+  const isAuthenticated = !!viewer;
+  const isOwner = isAuthenticated && viewer.id === profile.id;
+  const isAdmin =
+    isAuthenticated &&
+    ['admin', 'superadmin'].includes(viewer.role as Role);
+
+  const name = (profile.name && profile.name.trim()) || '';
 
   const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Profiles', href: route('profile.index') },
   ];
 
-  // Client-side filters
-  const [activeCategory, setActiveCategory] = useState<'All' | 'cat' | 'dog'>('All');
-  const [activeStatus, setActiveStatus] = useState<'All' | 'available' | 'pending' | 'adopted'>('All');
+  // Filters
+  const [activeCategory, setActiveCategory] =
+    useState<'All' | 'cat' | 'dog'>('All');
+
+  const [activeStatus, setActiveStatus] = useState<
+    'All' | 'waiting_for_approval' | 'available' | 'pending' | 'adopted'
+  >('All');
 
   const filteredPets = useMemo(() => {
     return (Array.isArray(pets) ? pets : [])
-      .filter(p =>
-        (activeCategory === 'All' || (p.category && p.category.toLowerCase() === activeCategory)) &&
-        (activeStatus === 'All' || (p.status && p.status.toLowerCase() === activeStatus))
+      .filter(
+        (p) =>
+          (activeCategory === 'All' ||
+            (p.category && p.category.toLowerCase() === activeCategory)) &&
+          (activeStatus === 'All' ||
+            (p.status && p.status.toLowerCase() === activeStatus))
       )
-      .sort((a, b) => (new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime()));
+      .sort(
+        (a, b) =>
+          new Date(b.created_at || '').getTime() -
+          new Date(a.created_at || '').getTime()
+      );
   }, [pets, activeCategory, activeStatus]);
+
+  /* =================== EDIT MODAL STATE =================== */
+  const [showModal, setShowModal] = useState(false);
+  const [editingPet, setEditingPet] = useState<Pet | null>(null);
+
+  const ALL_BREEDS = [...DOG_BREEDS, ...CAT_BREEDS];
+
+  const {
+    data,
+    setData,
+    post,
+    processing,
+    errors,
+    reset,
+    clearErrors,
+    transform,
+  } = useForm({
+    pname: '',
+    gender: '',
+    age: '',
+    age_unit: 'months' as 'months' | 'years',
+    category: '' as 'cat' | 'dog' | '',
+    breed: '',
+    custom_breed: '',
+    color: '',
+    location: '',
+    description: '',
+    image: null as File | null,
+  });
+
+  const breedOptions = useMemo(() => {
+    if (data.category === 'dog') return DOG_BREEDS;
+    if (data.category === 'cat') return CAT_BREEDS;
+    return [];
+  }, [data.category]);
+
+  const openEditModal = (pet: Pet) => {
+    setEditingPet(pet);
+    clearErrors();
+
+    const existingBreed = pet.breed || '';
+    const isInList =
+      existingBreed &&
+      ALL_BREEDS.includes(existingBreed as (typeof ALL_BREEDS)[number]);
+
+    setData('pname', pet.pname || '');
+    setData('gender', pet.gender || '');
+    setData('age', pet.age != null ? String(pet.age) : '');
+    setData('age_unit', (pet.age_unit as 'months' | 'years') || 'months');
+    setData('category', (pet.category as 'cat' | 'dog' | '') || '');
+    setData(
+      'breed',
+      isInList ? existingBreed : existingBreed ? 'Other / Not Sure' : ''
+    );
+    setData('custom_breed', !isInList ? existingBreed : '');
+    setData('color', pet.color || '');
+    setData('location', pet.location || '');
+    setData('description', pet.description || '');
+    setData('image', null);
+
+    setShowModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setEditingPet(null);
+    reset();
+    clearErrors();
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPet) return;
+
+    const finalBreed =
+      data.breed === 'Other / Not Sure'
+        ? (data.custom_breed || 'Other / Not Sure')
+        : data.breed;
+
+    transform((formData) => ({
+      ...formData,
+      breed: finalBreed,
+      _method: 'PUT', // para sa Route::put('/adoption/{adoption}')
+    }));
+
+    post(route('adoption.update', editingPet.id), {
+      forceFormData: true,
+      preserveScroll: true,
+      onSuccess: () => {
+        handleCloseModal();
+      },
+    });
+  };
+
+  /* =================== ACTIONS =================== */
+
+  const handleDelete = (petId: number) => {
+    if (!confirm('Are you sure you want to delete this post?')) return;
+
+    router.delete(route('adoption.destroy', petId), {
+      preserveScroll: true,
+    });
+  };
+
+  const handleCancelPending = (petId: number) => {
+    if (!confirm('Cancel this pending adoption?')) return;
+
+    router.post(
+      route('adoption.cancel', petId),
+      {},
+      {
+        preserveScroll: true,
+      }
+    );
+  };
+
+  // Edit button lalabas lang kung rejected
+  const canShowEdit = (pet: Pet) => {
+    if (!isOwner) return false;
+    return pet.status === 'rejected';
+  };
 
   return (
     <AppLayout breadcrumbs={breadcrumbs}>
@@ -126,26 +247,333 @@ export default function ProfileShow({ profile, pets }: PageProps) {
               >
                 ← Back to Adoption
               </Link>
-              {/* Optional contact (placeholder) */}
-              <a
-                href="{route(adoption.inquire)}"
-            onClick={(e) => e.preventDefault()}
+              <button
+                type="button"
+                onClick={() => alert('Sponsor feature coming soon')}
                 className="inline-flex items-center gap-2 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white font-semibold px-4 py-2 rounded-xl transition-colors"
               >
                 Sponsor
-              </a>
+              </button>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Edit Modal */}
+      <DisableScroll showModal={showModal} />
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center p-4 bg-black/60 backdrop-blur-sm pt-32">
+          <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-t-2xl bg-white dark:bg-gray-800 shadow-2xl">
+            {/* Header */}
+            <div className="sticky top-0 z-10 bg-gradient-to-r from-violet-600 to-purple-600 p-6 rounded-t-2xl">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                    <span className="text-3xl">🐾</span>
+                    Edit Pet
+                  </h2>
+                  <p className="text-violet-100 text-sm mt-1">
+                    Update the details of your adoption post
+                  </p>
+                </div>
+                <button
+                  onClick={handleCloseModal}
+                  className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
+                  aria-label="Close"
+                >
+                  <XButton />
+                </button>
+              </div>
+            </div>
+
+            <form
+              onSubmit={handleSubmit}
+              encType="multipart/form-data"
+              className="p-6 space-y-5"
+            >
+              {/* Pet Name */}
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                  Pet Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="pname"
+                  value={data.pname}
+                  onChange={(e) => setData('pname', e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none"
+                  required
+                />
+                {errors.pname && (
+                  <p className="text-red-500 text-xs mt-1">{errors.pname}</p>
+                )}
+              </div>
+
+              {/* Category & Breed */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                    Pet Type <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    name="category"
+                    value={data.category}
+                    onChange={(e) => {
+                      const val = e.target.value as 'cat' | 'dog' | '';
+                      setData('category', val);
+                      setData('breed', '');
+                      setData('custom_breed', '');
+                    }}
+                    className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none"
+                    required
+                  >
+                    <option value="">Select Pet Type</option>
+                    <option value="cat">🐱 Cat</option>
+                    <option value="dog">🐶 Dog</option>
+                  </select>
+                  {errors.category && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.category}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                    Breed <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    name="breed"
+                    value={data.breed}
+                    onChange={(e) => setData('breed', e.target.value)}
+                    disabled={!data.category}
+                    className={`w-full px-4 py-3 rounded-xl border-2 ${
+                      !data.category
+                        ? 'border-gray-200 dark:border-gray-700 opacity-70 cursor-not-allowed'
+                        : 'border-gray-200 dark:border-gray-600'
+                    } bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none`}
+                    required
+                  >
+                    {!data.category ? (
+                      <option value="">Select pet type first</option>
+                    ) : (
+                      <>
+                        <option value="">
+                          {`Select ${
+                            data.category === 'dog' ? 'Dog' : 'Cat'
+                          } Breed`}
+                        </option>
+                        {breedOptions.map((b: string) => (
+                          <option key={b} value={b}>
+                            {b}
+                          </option>
+                        ))}
+                      </>
+                    )}
+                  </select>
+                  {errors.breed && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.breed}
+                    </p>
+                  )}
+
+                  {data.breed === 'Other / Not Sure' && (
+                    <div className="mt-2">
+                      <label className="block text-xs font-medium mb-1 text-gray-600 dark:text-gray-400">
+                        Custom Breed <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={data.custom_breed}
+                        onChange={(e) =>
+                          setData('custom_breed', e.target.value)
+                        }
+                        className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none text-sm"
+                        placeholder="Type the breed (e.g. Aspin mix)"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Gender */}
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                  Gender <span className="text-red-500">*</span>
+                </label>
+                <div className="flex gap-4">
+                  {['male', 'female'].map((g) => (
+                    <label key={g} className="flex-1">
+                      <input
+                        type="radio"
+                        name="gender"
+                        value={g}
+                        checked={data.gender === g}
+                        onChange={(e) => setData('gender', e.target.value)}
+                        className="peer hidden"
+                      />
+                      <div className="cursor-pointer rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-3 text-center font-medium capitalize transition-all peer-checked:border-violet-500 peer-checked:bg-violet-50 dark:peer-checked:bg-violet-900/30 peer-checked:text-violet-700 dark:peer-checked:text-violet-300">
+                        {g === 'male' ? '♂️ Male' : '♀️ Female'}
+                      </div>
+                    </label>
+                  ))}
+                </div>
+                {errors.gender && (
+                  <p className="text-red-500 text-xs mt-1">{errors.gender}</p>
+                )}
+              </div>
+
+              {/* Age */}
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                  Age <span className="text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <input
+                    type="number"
+                    name="age"
+                    min={1}
+                    value={data.age}
+                    onChange={(e) => setData('age', e.target.value)}
+                    className="px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none"
+                    required
+                  />
+                  <select
+                    name="age_unit"
+                    value={data.age_unit}
+                    onChange={(e) =>
+                      setData('age_unit', e.target.value as 'months' | 'years')
+                    }
+                    className="px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none"
+                  >
+                    <option value="months">Months</option>
+                    <option value="years">Years</option>
+                  </select>
+                </div>
+                {errors.age && (
+                  <p className="text-red-500 text-xs mt-1">{errors.age}</p>
+                )}
+              </div>
+
+              {/* Color & Location */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                    Color <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="color"
+                    value={data.color}
+                    onChange={(e) => setData('color', e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none"
+                    required
+                  />
+                  {errors.color && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.color}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                    Location <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="location"
+                    value={data.location}
+                    onChange={(e) => setData('location', e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none"
+                    required
+                  />
+                  {errors.location && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.location}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                  Description <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  name="description"
+                  rows={4}
+                  value={data.description}
+                  onChange={(e) => setData('description', e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none resize-none"
+                  required
+                />
+                {errors.description && (
+                  <p className="text-red-500 text-xs mt-1">
+                    {errors.description}
+                  </p>
+                )}
+              </div>
+
+              {/* Image Upload */}
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                  Pet Photo (optional if no change)
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                      setData('image', e.target.files[0]);
+                    }
+                  }}
+                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-6 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100 dark:file:bg-violet-900/30 dark:file:text-violet-300 file:cursor-pointer"
+                />
+                {errors.image && (
+                  <p className="text-red-500 text-xs mt-1">{errors.image}</p>
+                )}
+              </div>
+
+              {/* Buttons */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="flex-1 px-6 py-3 rounded-xl border-2 border-gray-300 dark:border-gray-600 font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={processing}
+                  className="flex-1 px-6 py-3 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 text-white font-semibold hover:from-violet-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl"
+                >
+                  {processing ? 'Updating...' : 'Update Post'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-4 sm:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+                />
               </svg>
               <span className="font-semibold">Filter Posts:</span>
             </div>
@@ -174,6 +602,10 @@ export default function ProfileShow({ profile, pets }: PageProps) {
               <div className="flex flex-wrap gap-2">
                 {[
                   { label: 'All', value: 'All' },
+                  {
+                    label: 'Waiting for Approval',
+                    value: 'waiting_for_approval',
+                  },
                   { label: 'Available', value: 'available' },
                   { label: 'Pending', value: 'pending' },
                   { label: 'Adopted', value: 'adopted' },
@@ -217,12 +649,31 @@ export default function ProfileShow({ profile, pets }: PageProps) {
                       ⏳ PENDING
                     </span>
                   )}
+                  {pet.status === 'waiting_for_approval' && (
+                    <span className="bg-gradient-to-r from-amber-400 to-amber-500 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg">
+                      ⏳ WAITING FOR APPROVAL
+                    </span>
+                  )}
                   {(pet.status === 'available' || !pet.status) && (
                     <span className="bg-gradient-to-r from-green-400 to-emerald-500 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg">
                       ✨ AVAILABLE
                     </span>
                   )}
                 </div>
+
+                {/* Rejected notice – profile page lang, owner lang makakakita */}
+                {isOwner && pet.status === 'rejected' && (
+                  <div className="absolute left-3 right-3 top-12 z-10 rounded-xl border border-red-300 bg-red-50 dark:bg-red-900/20 dark:border-red-700 px-3 py-2">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-red-700 dark:text-red-300">
+                      <span>⚠️ Post Rejected</span>
+                    </div>
+                    <p className="mt-1 text-xs text-red-700/90 dark:text-red-200">
+                      {pet.reject_reason && pet.reject_reason.trim() !== ''
+                        ? pet.reject_reason
+                        : 'Your post was rejected by an administrator. Please review your information and try again.'}
+                    </p>
+                  </div>
+                )}
 
                 {/* Image */}
                 <div className="relative h-56 sm:h-64 overflow-hidden bg-gradient-to-br from-violet-100 to-purple-200 dark:from-gray-700 dark:to-gray-600">
@@ -231,7 +682,8 @@ export default function ProfileShow({ profile, pets }: PageProps) {
                     alt={pet.pname}
                     className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                     onError={(e) => {
-                      if (e.currentTarget.src !== PLACEHOLDER) e.currentTarget.src = PLACEHOLDER;
+                      if (e.currentTarget.src !== PLACEHOLDER)
+                        e.currentTarget.src = PLACEHOLDER;
                     }}
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
@@ -251,26 +703,9 @@ export default function ProfileShow({ profile, pets }: PageProps) {
                     </Link>
                   </div>
 
-                  {/* Age + Stage */}
-                  {/* <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-1">
-                    <span className="text-base">🎂</span>
-                    <span>{pet.age_text ?? ageText(pet.age ?? undefined, pet.age_unit ?? undefined)}</span>
-                    {(() => {
-                      const stage = pet.life_stage ?? computeLifeStage(pet.category, pet.age ?? undefined, pet.age_unit ?? undefined);
-                      return stage ? (
-                        <span className="px-2 py-0.5 bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 rounded-full text-xs font-semibold">
-                          {stage}
-                        </span>
-                      ) : null;
-                    })()}
-                  </div> */}
-
-                  {/* Small details */}
-                  {/* <div className="text-xs text-gray-500 dark:text-gray-400 mb-4">
-                    <span className="font-semibold">Breed:</span> {pet.breed || '—'}
-                    <span className="mx-2">•</span>
-                    <span className="font-semibold capitalize">{pet.category}</span>
-                  </div> */}
+                  <h3 className="text-xl font-extrabold text-gray-900 dark:text-white mb-2 truncate">
+                    {pet.pname}
+                  </h3>
 
                   <div className="flex gap-2">
                     <Link
@@ -287,6 +722,50 @@ export default function ProfileShow({ profile, pets }: PageProps) {
                       🐾
                     </Link>
                   </div>
+
+                  {/* Owner actions */}
+                  {isOwner && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {pet.status === 'pending' ? (
+                        // Pending → Cancel lang
+                        <button
+                          type="button"
+                          onClick={() => handleCancelPending(pet.id)}
+                          className="flex-1 min-w-[90px] text-center border-2 border-amber-500 text-amber-600 dark:text-amber-300 rounded-xl py-2 text-sm font-semibold hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-all"
+                        >
+                          Cancel
+                        </button>
+                      ) : (
+                        <>
+                          {/* Edit button lalabas lang kung REJECTED */}
+                          {canShowEdit(pet) && (
+                            <button
+                              type="button"
+                              onClick={() => openEditModal(pet)}
+                              className="flex-1 min-w-[90px] text-center border-2 border-blue-500 text-blue-600 dark:text-blue-300 rounded-xl py-2 text-sm font-semibold hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all"
+                            >
+                              Edit
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(pet.id)}
+                            className="flex-1 min-w-[90px] text-center border-2 border-rose-500 text-rose-600 dark:text-rose-300 rounded-xl py-2 text-sm font-semibold hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-all"
+                          >
+                            Delete
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Rejected reason visible sa owner/admin */}
+                  {pet.status === 'rejected' && (isOwner || isAdmin) && pet.reject_reason && (
+                    <div className="mt-3 text-xs text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-700 rounded-xl p-3">
+                      <strong>Reason for rejection:</strong> {pet.reject_reason}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -296,16 +775,30 @@ export default function ProfileShow({ profile, pets }: PageProps) {
             <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-violet-100 to-purple-200 dark:from-gray-700 dark:to-gray-600 rounded-full mb-6">
               <span className="text-5xl">😺</span>
             </div>
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">No posts yet</h3>
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+              No posts yet
+            </h3>
             <p className="text-gray-600 dark:text-gray-400 mb-6">
-              {isOwner ? 'Start by posting a pet for adoption.' : 'This user has no public posts.'}
+              {isOwner
+                ? 'Start by posting a pet for adoption.'
+                : 'This user has no public posts.'}
             </p>
             <Link
               href={route('adoption.index')}
               className="inline-flex items-center gap-2 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white font-semibold px-6 py-3 rounded-xl transition-all shadow-lg"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
               </svg>
               Back to Adoption
             </Link>

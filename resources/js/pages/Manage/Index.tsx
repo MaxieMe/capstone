@@ -23,7 +23,9 @@ import {
   Edit,
   Check,
   Trash2,
+  Image as ImageIcon,
 } from "lucide-react";
+
 import { DOG_BREEDS, CAT_BREEDS } from "@/components1/breed";
 import { route } from "ziggy-js";
 
@@ -32,10 +34,16 @@ const breadcrumbs: BreadcrumbItem[] = [{ title: "Manage Posts", href: "/manage" 
 interface Owner {
   id: number;
   name: string;
-  email: string;
+  email?: string;
 }
 
-type Status = "submitted" | "available" | "pending" | "adopted" | string;
+type Status =
+  | "waiting_for_approval"
+  | "available"
+  | "pending"
+  | "adopted"
+  | "rejected"
+  | string;
 
 interface Adoption {
   id: number;
@@ -52,6 +60,9 @@ interface Adoption {
   breed?: string | null;
   color?: string | null;
   description?: string | null;
+
+  image_url?: string | null;
+  image_path?: string | null;
 }
 
 interface Paginated<T> {
@@ -67,6 +78,9 @@ type AuthUser = {
 };
 
 const ALL_BREEDS = [...DOG_BREEDS, ...CAT_BREEDS];
+
+const PLACEHOLDER =
+  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect width="100%" height="100%" fill="%23e5e7eb"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%239ca3af" font-size="18" font-family="system-ui">No Photo</text></svg>';
 
 export default function ManageIndex() {
   const { auth, adoptions } = usePage<{
@@ -117,8 +131,7 @@ export default function ManageIndex() {
   const openEdit = (post: Adoption) => {
     const existingBreed = post.breed || "";
     const isInList =
-      existingBreed &&
-      ALL_BREEDS.includes(existingBreed as (typeof ALL_BREEDS)[number]);
+      existingBreed && ALL_BREEDS.includes(existingBreed as (typeof ALL_BREEDS)[number]);
 
     setEditingPost(post);
 
@@ -141,8 +154,8 @@ export default function ManageIndex() {
 
     const finalBreed =
       form.breed === "Other / Not Sure"
-        ? (form.custom_breed || "Other / Not Sure")
-        : (form.breed || "Other / Not Sure");
+        ? form.custom_breed || "Other / Not Sure"
+        : form.breed || "Other / Not Sure";
 
     router.put(
       route("manage.adoption.update", editingPost.id),
@@ -156,9 +169,7 @@ export default function ManageIndex() {
         color: form.color || null,
         location: form.location || null,
         description: form.description || null,
-
-        // 🔥 importante: ipadala ang kasalukuyang status para pumasa sa validation
-        status: editingPost.status,
+        // status hindi natin binabago dito – approval flow hiwalay
       },
       {
         preserveScroll: true,
@@ -173,14 +184,15 @@ export default function ManageIndex() {
   /* ===================== Status Badge ===================== */
 
   const StatusBadge = ({ status }: { status: Status }) => {
-    if (status === "submitted") {
+    if (status === "waiting_for_approval") {
       return (
         <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-amber-500/10 text-amber-500 ring-1 ring-amber-500/30">
           <Clock className="w-3 h-3 mr-1" />
-          Pending Approval
+          Waiting for approval
         </span>
       );
     }
+
     if (status === "available") {
       return (
         <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-emerald-500/10 text-emerald-500 ring-1 ring-emerald-500/30">
@@ -189,6 +201,7 @@ export default function ManageIndex() {
         </span>
       );
     }
+
     if (status === "adopted") {
       return (
         <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-slate-500/10 text-slate-400 ring-1 ring-slate-500/30">
@@ -197,6 +210,7 @@ export default function ManageIndex() {
         </span>
       );
     }
+
     if (status === "pending") {
       return (
         <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-blue-500/10 text-blue-400 ring-1 ring-blue-500/30">
@@ -205,6 +219,16 @@ export default function ManageIndex() {
         </span>
       );
     }
+
+    if (status === "rejected") {
+      return (
+        <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-rose-500/10 text-rose-500 ring-1 ring-rose-500/30">
+          <XCircle className="w-3 h-3 mr-1" />
+          Rejected
+        </span>
+      );
+    }
+
     return (
       <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-slate-500/10 text-slate-400 ring-1 ring-slate-500/30">
         {status}
@@ -224,8 +248,7 @@ export default function ManageIndex() {
     return c;
   };
 
-  const currentBreedList =
-    form.category === "cat" ? CAT_BREEDS : DOG_BREEDS;
+  const currentBreedList = form.category === "cat" ? CAT_BREEDS : DOG_BREEDS;
 
   const breedOptions = (() => {
     const base = [...currentBreedList];
@@ -248,7 +271,7 @@ export default function ManageIndex() {
               Manage Adoption Posts
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Approve, reject or delete pet adoption posts. Only superadmin can edit posts.
+              Approve or reject new posts. Once approved, superadmin can also edit or delete.
             </p>
           </div>
           <div className="flex items-center gap-2 text-sm">
@@ -276,6 +299,7 @@ export default function ManageIndex() {
                 <thead className="sticky top-0 z-10">
                   <tr className="bg-muted/50 text-muted-foreground border-b border-border">
                     <th className="p-4 font-semibold whitespace-nowrap">ID</th>
+                    <th className="p-4 font-semibold whitespace-nowrap">Photo</th>
                     <th className="p-4 font-semibold whitespace-nowrap">Pet Name</th>
                     <th className="p-4 font-semibold whitespace-nowrap">Owner</th>
                     <th className="p-4 font-semibold whitespace-nowrap">Category</th>
@@ -289,17 +313,19 @@ export default function ManageIndex() {
 
                 <tbody>
                   {adoptions.data.map((post) => {
-                    const isSubmitted = post.status === "submitted";
+                    const isWaiting = post.status === "waiting_for_approval";
                     const canApproveReject =
-                      ["admin", "superadmin"].includes(auth.user.role) && isSubmitted;
-                    const canEdit = isSuperadmin && post.status !== "submitted";
-                    const canDelete = isSuperadmin;
+                      ["admin", "superadmin"].includes(auth.user.role) && isWaiting;
+                    const canEdit = isSuperadmin && !isWaiting && post.status !== "rejected";
+                    const canDelete = isSuperadmin && post.status !== "waiting_for_approval";
+
+                    const photo = post.image_url || PLACEHOLDER;
 
                     return (
                       <tr
                         key={post.id}
                         className={`border-b border-border transition-colors ${
-                          isSubmitted
+                          isWaiting
                             ? "bg-amber-50/60 dark:bg-amber-950/20"
                             : "hover:bg-muted/50"
                         }`}
@@ -309,11 +335,33 @@ export default function ManageIndex() {
                             #{post.id}
                           </span>
                         </td>
+
+                        {/* Photo */}
+                        <td className="p-4 align-middle">
+                          <div className="w-16 h-16 rounded-lg overflow-hidden bg-muted flex items-center justify-center">
+                            {photo ? (
+                              <img
+                                src={photo}
+                                alt={post.pname}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  if (e.currentTarget.src !== PLACEHOLDER) {
+                                    e.currentTarget.src = PLACEHOLDER;
+                                  }
+                                }}
+                              />
+                            ) : (
+                              <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                            )}
+                          </div>
+                        </td>
+
                         <td className="p-4 align-middle">
                           <div className="font-medium max-w-[180px] truncate">
                             {post.pname}
                           </div>
                         </td>
+
                         <td className="p-4 align-middle">
                           {post.user ? (
                             <div className="flex items-center gap-2 max-w-[220px] truncate">
@@ -326,16 +374,19 @@ export default function ManageIndex() {
                             </span>
                           )}
                         </td>
+
                         <td className="p-4 align-middle">
                           <span className="text-xs font-medium uppercase tracking-wide">
                             {categoryLabel(post.category)}
                           </span>
                         </td>
+
                         <td className="p-4 align-middle">
                           <span className="text-xs font-medium">
                             {genderLabel(post.gender)}
                           </span>
                         </td>
+
                         <td className="p-4 align-middle">
                           <div className="flex items-center gap-2 max-w-[200px] truncate text-muted-foreground">
                             <MapPin className="w-4 h-4 flex-shrink-0" />
@@ -344,15 +395,18 @@ export default function ManageIndex() {
                             </span>
                           </div>
                         </td>
+
                         <td className="p-4 align-middle">
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
                             <CalendarClock className="w-4 h-4 flex-shrink-0" />
                             <span>{new Date(post.created_at).toLocaleString()}</span>
                           </div>
                         </td>
+
                         <td className="p-4 align-middle text-center">
                           <StatusBadge status={post.status} />
                         </td>
+
                         <td className="p-4 align-middle">
                           <div className="flex flex-wrap items-center justify-center gap-2">
                             {canApproveReject && (
@@ -415,22 +469,41 @@ export default function ManageIndex() {
             {/* Mobile cards */}
             <div className="md:hidden space-y-4">
               {adoptions.data.map((post) => {
-                const isSubmitted = post.status === "submitted";
+                const isWaiting = post.status === "waiting_for_approval";
                 const canApproveReject =
-                  ["admin", "superadmin"].includes(auth.user.role) && isSubmitted;
-                const canEdit = isSuperadmin && post.status !== "submitted";
-                const canDelete = isSuperadmin;
+                  ["admin", "superadmin"].includes(auth.user.role) && isWaiting;
+                const canEdit = isSuperadmin && !isWaiting && post.status !== "rejected";
+                const canDelete = isSuperadmin && post.status !== "waiting_for_approval";
+                const photo = post.image_url || PLACEHOLDER;
 
                 return (
                   <div
                     key={post.id}
                     className={`rounded-xl border border-border bg-card p-4 shadow-sm transition-all ${
-                      isSubmitted
+                      isWaiting
                         ? "bg-amber-50/60 dark:bg-amber-950/20 ring-2 ring-amber-500/20"
                         : ""
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-3 mb-3">
+                    {/* Top: photo + basic */}
+                    <div className="flex gap-3 mb-3">
+                      <div className="w-20 h-20 rounded-lg overflow-hidden bg-muted flex-shrink-0 flex items-center justify-center">
+                        {photo ? (
+                          <img
+                            src={photo}
+                            alt={post.pname}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              if (e.currentTarget.src !== PLACEHOLDER) {
+                                e.currentTarget.src = PLACEHOLDER;
+                              }
+                            }}
+                          />
+                        ) : (
+                          <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                        )}
+                      </div>
+
                       <div className="flex-1 min-w-0 space-y-1">
                         <div className="flex items-center gap-2">
                           <span className="font-mono text-xs bg-muted px-2 py-0.5 rounded">
@@ -650,6 +723,7 @@ export default function ManageIndex() {
                         {b}
                       </option>
                     ))}
+                    {/* In case wala pa, nandito na sa list yung "Other / Not Sure" from breed arrays mo */}
                   </select>
 
                   {form.breed === "Other / Not Sure" && (

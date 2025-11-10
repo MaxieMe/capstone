@@ -1,9 +1,9 @@
-// resources/js/Pages/Manage/AdoptionHistory.tsx
 
 import React from 'react';
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, Link, usePage, router } from '@inertiajs/react';
 import AppLayout from '@/layouts/app-layout';
 import { route } from 'ziggy-js';
+import { Button } from '@/components/ui/button';
 
 type User = {
   id: number;
@@ -33,11 +33,7 @@ type Inquiry = {
   created_at: string;
 };
 
-type PaginationLink = {
-  url: string | null;
-  label: string;
-  active: boolean;
-};
+type PaginationLink = { url: string | null; label: string; active: boolean };
 
 type PageProps = {
   inquiries: {
@@ -50,7 +46,7 @@ type PageProps = {
   };
 };
 
-export default function AdoptionHistory({ inquiries, filters }: PageProps) {
+export default function TransactionHistory({ inquiries, filters }: PageProps) {
   const { props } = usePage() as any;
   const user = props?.auth?.user;
 
@@ -69,7 +65,7 @@ export default function AdoptionHistory({ inquiries, filters }: PageProps) {
     <AppLayout
       breadcrumbs={[
         { title: 'Dashboard', href: route('dashboard') },
-        { title: 'Adoption History', href: route('manage.adoption.history') },
+        { title: 'Transaction History', href: route('manage.transaction.history') },
       ]}
     >
       <Head title="Adoption Inquiries History" />
@@ -267,18 +263,16 @@ export default function AdoptionHistory({ inquiries, filters }: PageProps) {
           {inquiries.links?.length > 0 && (
             <div className="border-t border-gray-200 dark:border-gray-700 px-4 py-3 flex justify-center gap-1">
               {inquiries.links.map((link, i) => (
-                <button
-                  key={i}
-                  disabled={!link.url}
-                  onClick={() => link.url && (window.location.href = link.url)}
-                  className={
-                    'px-3 py-1 rounded-lg text-xs font-medium ' +
-                    (link.active
-                      ? 'bg-violet-600 text-white'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50')
-                  }
-                  dangerouslySetInnerHTML={{ __html: link.label }}
-                />
+               <Button
+               key={i}
+               size="sm"
+               variant={link.active ? "default" : "outline"}
+               disabled={!link.url}
+               onClick={() => link.url && router.visit(link.url)}
+               className="min-w-[2.5rem]"
+             >
+               <span dangerouslySetInnerHTML={{ __html: link.label }} />
+             </Button>
               ))}
             </div>
           )}

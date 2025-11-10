@@ -1,3 +1,4 @@
+// resources/js/Pages/Adoption/Index.tsx
 import { DisableScroll } from '@/components1/disable-scroll';
 import { PlusButton } from '@/components1/plus-button';
 import { XButton } from '@/components1/x-button';
@@ -7,6 +8,7 @@ import { Head, useForm, Link, usePage, router } from '@inertiajs/react';
 import React, { useMemo, useState } from 'react';
 import { CAT_BREEDS, DOG_BREEDS } from '@/components1/breed';
 import { route } from 'ziggy-js';
+import { Button } from '@/components/ui/button';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Adoption', href: '/adoption' }];
 
@@ -19,6 +21,11 @@ type ProfileUser = {
   id?: number;
   name?: string;
 };
+
+interface Paginated<T> {
+  data: T[];
+  links: { url: string | null; label: string; active: boolean }[];
+}
 
 type Pet = {
   id: number;
@@ -33,10 +40,12 @@ type Pet = {
   location?: string;
   description?: string;
   image_url?: string;
-  status?: 'available' | 'pending' | 'adopted' | string;
+  status?: 'waiting_for_approval' | 'available' | 'pending' | 'adopted' | string;
   created_at?: string;
   life_stage?: string | null;
   age_text?: string | null;
+
+  is_approved?: boolean;
 };
 
 type GuestUser = {
@@ -79,18 +88,21 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
       : 'All') as any
   );
 
-  // guest search
+  // guest search (for guest user directory)
   const guestSearchForm = useForm({ q: filters?.q ?? '' });
 
-  // pets list
+  // pets list (used for authenticated view)
   const list: Pet[] = Array.isArray(adoption?.data) ? adoption.data : [];
 
   const filteredPets = useMemo(() => {
     return list
       .filter((pet) => {
+        // Auth: kung ano binigay ng backend (available + pending)
+        // Guest: available lang (pero backend na mismo nag fi-filter, extra guard lang)
         const availableOnly = isAuthenticated
           ? true
           : (pet.status || '').toLowerCase() === 'available';
+
         const categoryMatch =
           activeCategory === 'All' ||
           (pet.category &&
@@ -131,7 +143,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
     image: null as File | null,
   });
 
-  // full breed list para sa edit logic
+  // full breed list para sa edit logic (for create/edit sa modal)
   const ALL_BREEDS = [...DOG_BREEDS, ...CAT_BREEDS];
 
   const breedOptions = useMemo(() => {
@@ -150,6 +162,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
     setShowModal(true);
   };
 
+  // NOTE: pwede mo pa ring iwan itong openEditModal kung gusto mong balikan balang araw
   const openEditModal = (pet: Pet) => {
     setEditingPet(pet);
     clearErrors();
@@ -165,8 +178,10 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
     setData('age_unit', (pet.age_unit as 'months' | 'years') || 'months');
     setData('category', (pet.category as 'cat' | 'dog' | '') || '');
 
-    // kung hindi kasama sa list → treat as "Other / Not Sure" + custom_breed
-    setData('breed', isInList ? existingBreed : existingBreed ? 'Other / Not Sure' : '');
+    setData(
+      'breed',
+      isInList ? existingBreed : existingBreed ? 'Other / Not Sure' : ''
+    );
     setData('custom_breed', !isInList ? existingBreed : '');
 
     setData('color', pet.color || '');
@@ -193,6 +208,8 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
         : data.breed;
 
     if (editingPet) {
+      // Ginagamit mo na lang ang edit sa Profile page modal,
+      // pero iwan natin logic just in case
       transform((formData) => ({
         ...formData,
         breed: finalBreed,
@@ -249,7 +266,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
   const prevLink = adoption?.links?.[0];
   const nextLink = adoption?.links?.[adoption?.links?.length - 1];
 
-  // guest directory search
+  // guest directory search submit
   const submitGuestSearch = (e: React.FormEvent) => {
     e.preventDefault();
     guestSearchForm.get(route('adoption.index'), {
@@ -580,7 +597,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                   {data.breed === 'Other / Not Sure' && (
                     <div className="mt-2">
                       <label className="block text-xs font-medium mb-1 text-gray-600 dark:text-gray-400">
-                        Custom Breed
+                        Custom Breed <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
@@ -660,7 +677,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
-                    Color
+                    Color <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -669,6 +686,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                     onChange={(e) => setData('color', e.target.value)}
                     className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none"
                     placeholder="e.g., Brown, White"
+                    required
                   />
                   {errors.color && (
                     <p className="text-red-500 text-xs mt-1">
@@ -678,7 +696,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
-                    Location
+                    Location <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -687,6 +705,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                     onChange={(e) => setData('location', e.target.value)}
                     className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none"
                     placeholder="e.g., Manila"
+                    required
                   />
                   {errors.location && (
                     <p className="text-red-500 text-xs mt-1">
@@ -699,7 +718,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
               {/* Description */}
               <div>
                 <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
-                  Description
+                  Description <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   name="description"
@@ -708,6 +727,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                   onChange={(e) => setData('description', e.target.value)}
                   className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:focus:ring-violet-800 transition-all outline-none resize-none"
                   placeholder="Tell us about this pet's personality, habits, and why they'd make a great companion..."
+                  required
                 />
                 {errors.description && (
                   <p className="text-red-500 text-xs mt-1">
@@ -719,7 +739,8 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
               {/* Image Upload */}
               <div>
                 <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
-                  Pet Photo {editingPet ? '(optional if no change)' : ''}
+                  Pet Photo {editingPet ? '(optional if no change)' : ''}{' '}
+                  <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="file"
@@ -729,6 +750,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                       setData('image', e.target.files[0]);
                     }
                   }}
+                  required={!editingPet}
                   className="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-6 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100 dark:file:bg-violet-900/30 dark:file:text-violet-300 file:cursor-pointer"
                 />
                 {errors.image && (
@@ -764,7 +786,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
         </div>
       )}
 
-      {/* ✅ OLD FILTER UI (category + gender pills lang) */}
+      {/* Filters (category + gender) */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-4 sm:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -833,7 +855,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
         </div>
       </div>
 
-      {/* ✅ OLD CARD DISPLAY STYLE */}
+      {/* Pets Grid */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
         {filteredPets.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -852,6 +874,11 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                   {pet.status === 'pending' && (
                     <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg">
                       ⏳ PENDING
+                    </span>
+                  )}
+                  {pet.status === 'waiting_for_approval' && (
+                    <span className="bg-gradient-to-r from-amber-400 to-amber-500 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg">
+                      ⏳ WAITING FOR APPROVAL
                     </span>
                   )}
                   {(pet.status === 'available' || !pet.status) && (
@@ -904,7 +931,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                     {pet.pname}
                   </h3>
 
-                  {/* First row: About Me + Visit Profile (for guests only) */}
+                  {/* First row: About Me */}
                   <div className="flex gap-2">
                     <Link
                       href={route('adoption.show', pet.id)}
@@ -912,57 +939,37 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                     >
                       About me
                     </Link>
-
-                    {!isAuthenticated && pet.user?.name && (
-                      <button
-                        onClick={() => visitProfile(pet)}
-                        className="px-4 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                        title="Visit Profile"
-                      >
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                          />
-                        </svg>
-                      </button>
-                    )}
+                    <Link
+                      href={route('adoption.index')}
+                      className="px-4 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                      title="Browse more"
+                    >
+                      🐾
+                    </Link>
                   </div>
 
-                  {/* Second row: Owner actions (Edit / Cancel / Delete) */}
+                  {/* Second row: Owner actions (NO EDIT BUTTON HERE) */}
                   {isOwner(pet) && (
                     <div className="mt-3 flex flex-wrap gap-2">
-                      {pet.status !== 'pending' && (
-                        <button
-                          onClick={() => openEditModal(pet)}
-                          className="flex-1 min-w-[90px] text-center border-2 border-blue-500 text-blue-600 dark:text-blue-300 rounded-xl py-2 text-sm font-semibold hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all"
-                        >
-                          Edit
-                        </button>
-                      )}
-
-                      {pet.status === 'pending' && (
+                      {pet.status === 'pending' ? (
+                        // ✅ Kung pending → Cancel lang
                         <button
                           onClick={() => handleCancelPending(pet)}
                           className="flex-1 min-w-[90px] text-center border-2 border-amber-500 text-amber-600 dark:text-amber-300 rounded-xl py-2 text-sm font-semibold hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-all"
                         >
                           Cancel
                         </button>
+                      ) : (
+                        <>
+                          {/* ❌ WALA NANG EDIT BUTTON DITO */}
+                          <button
+                            onClick={() => handleDelete(pet)}
+                            className="flex-1 min-w-[90px] text-center border-2 border-rose-500 text-rose-600 dark:text-rose-300 rounded-xl py-2 text-sm font-semibold hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-all"
+                          >
+                            Delete
+                          </button>
+                        </>
                       )}
-
-                      <button
-                        onClick={() => handleDelete(pet)}
-                        className="flex-1 min-w-[90px] text-center border-2 border-rose-500 text-rose-600 dark:text-rose-300 rounded-xl py-2 text-sm font-semibold hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-all"
-                      >
-                        Delete
-                      </button>
                     </div>
                   )}
                 </div>
@@ -1018,17 +1025,16 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
           {/* Desktop */}
           <div className="hidden sm:flex justify-center gap-2">
             {adoption.links.map((link: any, i: number) => (
-              <button
+              <Button
                 key={i}
+                size="sm"
+                variant={link.active ? 'default' : 'outline'}
                 disabled={!link.url}
                 onClick={() => link.url && router.visit(link.url)}
-                className={`px-4 py-2 rounded-xl font-semibold transition-all ${
-                  link.active
-                    ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-lg scale-105'
-                    : 'bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-                } disabled:opacity-50 disabled:cursor-not-allowed`}
-                dangerouslySetInnerHTML={{ __html: link.label }}
-              />
+                className="min-w-[2.5rem]"
+              >
+                <span dangerouslySetInnerHTML={{ __html: link.label }} />
+              </Button>
             ))}
           </div>
         </div>

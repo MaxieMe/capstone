@@ -83,6 +83,7 @@ export default function Register() {
                                         id="password"
                                         type={showPassword ? 'text' : 'password'}
                                         required
+                                        tabIndex={3}
                                         autoComplete="off"
                                         name="password"
                                         placeholder="Password"
@@ -114,6 +115,7 @@ export default function Register() {
                                         id="password_confirmation"
                                         type={showPasswordConfirmation ? 'text' : 'password'}
                                         required
+                                        tabIndex={4}
                                         autoComplete="off"
                                         name="password_confirmation"
                                         placeholder="Confirm password"
@@ -146,6 +148,7 @@ export default function Register() {
                                     name="barangay_permit"
                                     accept="image/*"
                                     required
+                                    tabIndex={5}
                                 />
                                 <p className="text-xs text-muted-foreground">
                                     Accepted formats: JPG, PNG (max 2 MB)

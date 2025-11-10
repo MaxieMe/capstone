@@ -20,12 +20,25 @@ return new class extends Migration
             $table->enum('category', ['cat', 'dog']);
             $table->string('breed', 120);
 
-            $table->string('color', 120)->nullable();
-            $table->string('location', 180)->nullable();
-            $table->text('description')->nullable();
+            // ✅ lahat required
+            $table->string('color', 120);
+            $table->string('location', 180);
+            $table->string('description', 300);
 
-            $table->enum('status', ['available', 'pending', 'adopted'])->default('available');
-            $table->string('image_path')->nullable();
+            // ✅ statuses + default
+            $table->enum('status', [
+                'waiting_for_approval',
+                'available',
+                'pending',
+                'adopted',
+                'rejected',
+            ])->default('waiting_for_approval');
+
+            // ✅ approval flag (required, may default)
+            $table->boolean('is_approved')->default(false);
+
+            // ✅ image required din
+            $table->string('image_path');
 
             $table->timestamps();
 

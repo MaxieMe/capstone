@@ -9,10 +9,15 @@ use Inertia\Inertia;
 
 class ManageController extends Controller
 {
+    /**
+     * Show list of adoption posts for admin/superadmin (approval, edit, delete).
+     */
     public function index(Request $request)
     {
         $query = Adoption::query()
             ->with('user')
+            // ✅ Huwag ipakita ang REJECTED sa manage list
+            ->where('status', '!=', 'rejected')
             ->orderByDesc('created_at');
 
         if ($request->filled('status')) {
@@ -39,39 +44,53 @@ class ManageController extends Controller
         ]);
     }
 
+    /**
+     * Approve a post (make it visible on adoption list).
+     */
     public function approve(Adoption $adoption)
     {
+        // from waiting_for_approval → available
         $adoption->update([
-            'is_approved' => true,
-            'status'      => $adoption->status === 'submitted' ? 'available' : $adoption->status,
+            'status' => 'available',
         ]);
 
         return back()->with('success', 'Adoption post approved.');
     }
 
+    /**
+     * Reject a post.
+     */
     public function reject(Adoption $adoption, Request $request)
-    {
-        $adoption->update([
-            'is_approved' => false,
-            'status'      => 'submitted', // or 'rejected' kung meron kang ganitong status
-        ]);
+{
+    $data = $request->validate([
+        'reject_reason' => ['nullable', 'string', 'max:500'],
+    ]);
 
-        return back()->with('success', 'Adoption post rejected.');
-    }
+    $adoption->status = 'rejected';
+    $adoption->reject_reason = $data['reject_reason'] ?? null;
+    $adoption->save();
 
+    return back()->with('success', 'Adoption post rejected.');
+}
+
+
+
+    /**
+     * Update adoption post (admin/superadmin edit).
+     * NOTE: status hindi binabago dito.
+     */
     public function update(Request $request, Adoption $adoption)
     {
         $data = $request->validate([
-            'pname'       => ['required', 'string', 'max:255'],
-            'gender'      => ['required', 'in:male,female'],
-            'age'         => ['required', 'integer', 'min:1'],
-            'age_unit'    => ['required', 'in:months,years'],
-            'category'    => ['required', 'in:cat,dog'],
-            'breed'       => ['nullable', 'string', 'max:255'],
-            'color'       => ['nullable', 'string', 'max:255'],
-            'location'    => ['nullable', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
-            'status'      => ['sometimes', 'in:submitted,available,pending,adopted'],
+            'pname'      => ['required', 'string', 'max:255'],
+            'gender'     => ['required', 'in:male,female'],
+            'age'        => ['required', 'integer', 'min:1'],
+            'age_unit'   => ['required', 'in:months,years'],
+            'category'   => ['required', 'in:cat,dog'],
+            'breed'      => ['nullable', 'string', 'max:255'],
+            'color'      => ['nullable', 'string', 'max:255'],
+            'location'   => ['nullable', 'string', 'max:255'],
+            'description'=> ['nullable', 'string'],
         ]);
 
         $adoption->update($data);
@@ -79,6 +98,9 @@ class ManageController extends Controller
         return back()->with('success', 'Adoption post updated.');
     }
 
+    /**
+     * Delete adoption post.
+     */
     public function destroy(Adoption $adoption)
     {
         $adoption->delete();
@@ -86,6 +108,9 @@ class ManageController extends Controller
         return back()->with('success', 'Adoption post deleted.');
     }
 
+    /**
+     * Adoption history: list of all inquiries for admins/superadmins.
+     */
     public function history(Request $request)
     {
         $query = AdoptionInquiry::query()
@@ -112,7 +137,7 @@ class ManageController extends Controller
 
         $inquiries = $query->paginate(20)->withQueryString();
 
-        return Inertia::render('Manage/AdoptionHistory', [
+        return Inertia::render('Manage/TransactionHistory', [
             'inquiries' => $inquiries,
             'filters'   => [
                 'q'      => $request->input('q'),

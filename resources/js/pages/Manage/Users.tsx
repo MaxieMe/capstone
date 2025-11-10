@@ -24,7 +24,7 @@ import {
   Trash2,
 } from "lucide-react";
 
-const breadcrumbs: BreadcrumbItem[] = [{ title: "Manage Users", href: "/users" }];
+const breadcrumbs: BreadcrumbItem[] = [{ title: "Manage Users", href: "/Users" }];
 
 interface User {
   id: number;

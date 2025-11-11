@@ -16,17 +16,27 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // cookies
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 
+        // WEB MIDDLEWARE GROUP
         $middleware->web(append: [
             HandleAppearance::class,
             HandleInertiaRequests::class,
+
+            // 🔥 GLOBAL approval check (lahat ng web request dadaan dito)
+            EnsureUserIsApproved::class,
+
             AddLinkHeadersForPreloadedAssets::class,
         ]);
 
+        // Route middleware aliases
         $middleware->alias([
-            'role' => RoleMiddleware::class,
-            'approved' => EnsureUserIsApproved::class,
+            'role'      => RoleMiddleware::class,
+
+            // pwede mo pa rin tawagin sa routes as 'approved' kung gusto mong
+            // i-apply lang sa specific groups, pero global na rin siya sa web group
+            'approved'  => EnsureUserIsApproved::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

@@ -9,30 +9,46 @@ use Symfony\Component\HttpFoundation\Response;
 
 class EnsureUserIsApproved
 {
-    /**
-     * Handle an incoming request.
-     */
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
 
-        // 1) Guests or superadmin → hayaan lang (iba pang middleware bahala sa auth)
-        if (! $user || ($user->role ?? null) === 'superadmin') {
+        // guests: tuloy lang (ibang middleware na bahala mag-require auth)
+        if (! $user) {
             return $next($request);
         }
 
-        // 2) Flag kung approved
+        // superadmin: laging allowed
+        if ($user->role === 'superadmin') {
+            return $next($request);
+        }
+
         $isApproved = (bool) ($user->is_approved ?? false);
 
-        // 3) Mga route na allowed kahit hindi approved (pending / rejected)
-        $allowedRoutes = [
+        // current route name
+        $routeName = $request->route()?->getName();
+
+        // routes na allowed kahit hindi approved:
+        $allowedForUnapproved = [
             'pending',
-            'pending.resubmit', // 🔥 importante
+            'pending.resubmit',
             'logout',
+            // kung may email verification / password routes ka:
+            // 'verification.notice',
+            // 'verification.verify',
+            // 'password.request',
+            // 'password.email',
+            // 'password.reset',
+            // etc...
         ];
 
-        // 4) Kung hindi approved (pending/rejected) at hindi papunta sa allowed routes
-        if (! $isApproved && ! $request->routeIs($allowedRoutes)) {
+        if (! $isApproved) {
+            // kung nasa allowed routes → tuloy
+            if ($routeName && in_array($routeName, $allowedForUnapproved, true)) {
+                return $next($request);
+            }
+
+            // lahat ng iba → redirect sa /pending
             if ($request->inertia()) {
                 return Inertia::location(route('pending'));
             }
@@ -40,7 +56,7 @@ class EnsureUserIsApproved
             return redirect()->route('pending');
         }
 
-        // 5) Approved user → tuloy lang
+        // approved user → normal flow
         return $next($request);
     }
 }

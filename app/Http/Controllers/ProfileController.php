@@ -7,6 +7,9 @@ use App\Models\Adoption;
 use App\Models\Sponsor;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 
 class ProfileController extends Controller
 {
@@ -17,11 +20,10 @@ class ProfileController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        if (!$user) {
+        if (! $user) {
             abort(401);
         }
 
-        // Prefer username in URLs; fallback to name (currently name lang gamit)
         $name = $this->usernameOrName($user);
 
         return redirect()->route('profile.show', ['name' => $name]);
@@ -55,12 +57,11 @@ class ProfileController extends Controller
          * - Admin / superadmin: lahat (for moderation)
          * - Guest / ibang normal user:
          *      → "available" + "pending"
-         *      → para kahit nag-inquire na sila at naging pending, makikita pa rin nila
          */
         if ($isAdmin) {
-            // admins see all statuses (no extra filter)
+            // admins see all statuses
         } elseif ($isOwner) {
-            // owner sees everything (no extra filter)
+            // owner sees all statuses
         } else {
             // guests / other users: available + pending lang
             $query->whereIn('status', ['available', 'pending']);
@@ -78,10 +79,10 @@ class ProfileController extends Controller
                 ? asset('storage/' . $pet->image_path)
                 : null;
 
-            return (object)[
+            return (object) [
                 'id'            => $pet->id,
                 'pname'         => $pet->pname,
-                'user'          => $pet->user ? (object)[
+                'user'          => $pet->user ? (object) [
                     'id'   => $pet->user->id,
                     'name' => $pet->user->name,
                 ] : null,
@@ -102,7 +103,7 @@ class ProfileController extends Controller
             ];
         });
 
-        // 🔥 Sponsor data ng profile owner (para sa Sponsor QR section)
+        // Sponsor data ng profile owner (para sa Sponsor QR section)
         $sponsor = Sponsor::where('user_id', $profile->id)->first();
 
         $sponsorData = null;
@@ -111,9 +112,9 @@ class ProfileController extends Controller
                 ? asset('storage/' . $sponsor->qr_path)
                 : null;
 
-            $sponsorData = (object)[
+            $sponsorData = (object) [
                 'id'            => $sponsor->id,
-                'status'        => $sponsor->status,         // waiting_for_approval / approved / rejected
+                'status'        => $sponsor->status,
                 'reject_reason' => $sponsor->reject_reason,
                 'qr_url'        => $qrUrl,
             ];
@@ -125,22 +126,95 @@ class ProfileController extends Controller
                 'name' => $profile->name,
             ],
             'pets'    => $pets,
-            'sponsor' => $sponsorData, // 🔥 ipapasa sa frontend (Profile/Show.tsx)
+            'sponsor' => $sponsorData,
+            'auth'    => [
+                'user' => $viewer,
+            ],
         ]);
+    }
+
+    /**
+     * Auth user update profile (normal flow sa approved users).
+     * Kapag user nag-edit → status balik sa "pending":
+     *  - is_approved = false
+     *  - is_rejected = false
+     *  - reject_reason = null
+     */
+    public function update(Request $request)
+    {
+        $user = $request->user();
+        if (! $user) {
+            abort(401);
+        }
+
+        $data = $request->validate([
+            'name'  => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', Rule::unique('users')->ignore($user->id)],
+            // kung may iba ka pang fields (address, contact, etc) idagdag dito
+        ]);
+
+        $user->update(array_merge($data, [
+            'is_approved'   => false,   // balik PENDING
+            'is_rejected'   => false,   // clear REJECTED flag
+            'reject_reason' => null,    // clear reason
+        ]));
+
+        return back()->with('success', 'Profile updated. Your account is now pending for review again.');
+    }
+
+    /**
+     * Re-submit info from Pending/Rejected page.
+     * Route: POST /pending/resubmit -> name('pending.resubmit')
+     */
+    public function resubmitFromPending(Request $request)
+    {
+        $user = $request->user();
+        if (! $user) {
+            abort(401);
+        }
+
+        $data = $request->validate([
+            'name'            => ['required', 'string', 'max:255'],
+            'email'           => ['required', 'email', Rule::unique('users')->ignore($user->id)],
+            'password'        => ['required', 'confirmed', 'min:8'],
+            'barangay_permit' => ['nullable', 'image', 'max:2048'], // 2MB
+        ]);
+
+        // handle barangay permit upload kung may bago
+        if ($request->hasFile('barangay_permit')) {
+            $path = $request->file('barangay_permit')->store('barangay_permits', 'public');
+            $data['barangay_permit'] = $path;
+        }
+
+        // update basic info
+        $user->name     = $data['name'];
+        $user->email    = $data['email'];
+        $user->password = Hash::make($data['password']);
+
+        if (isset($data['barangay_permit'])) {
+            $user->barangay_permit = $data['barangay_permit'];
+        }
+
+        // RESET STATUS: back to pending
+        $user->is_approved   = false;
+        $user->is_rejected   = false;
+        $user->reject_reason = null;
+
+        $user->save();
+
+        return back()->with('success', 'Information updated. Your account is now pending for review again.');
     }
 
     /* ----------------------------- Helpers ----------------------------- */
 
     private function usernameOrName(User $user): string
     {
-        // Kung may username column ka later, dito mo ilalagay.
-        // For now, name lang ang gamit.
-        $u = trim((string)($user->name ?? ''));
+        $u = trim((string) ($user->name ?? ''));
         if ($u !== '') {
             return $u;
         }
 
-        return trim((string)($user->name ?? ''));
+        return trim((string) ($user->name ?? ''));
     }
 
     private function ageText(?int $age, ?string $unit): string
@@ -157,7 +231,7 @@ class ProfileController extends Controller
 
     private function computeLifeStage(?string $category, ?int $age, ?string $unit): ?string
     {
-        if (!$category || $age === null) {
+        if (! $category || $age === null) {
             return null;
         }
 

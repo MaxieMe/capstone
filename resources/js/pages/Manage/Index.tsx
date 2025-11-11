@@ -77,15 +77,32 @@ type AuthUser = {
   role: "user" | "admin" | "superadmin";
 };
 
+type Filters = {
+  q?: string | null;
+  status?: string | null;
+  category?: string | null;
+};
+
+type StatusFilter =
+  | "all"
+  | "waiting_for_approval"
+  | "available"
+  | "pending"
+  | "adopted"
+  | "rejected";
+
+type CategoryFilter = "all" | "dog" | "cat";
+
 const ALL_BREEDS = [...DOG_BREEDS, ...CAT_BREEDS];
 
 const PLACEHOLDER =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="260"><rect width="100%" height="100%" fill="%23f3f4f6"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%239ca3af" font-size="18" font-family="system-ui">No Photo</text></svg>';
 
 export default function ManageIndex() {
-  const { auth, adoptions } = usePage<{
+  const { auth, adoptions, filters } = usePage<{
     auth: { user: AuthUser };
     adoptions: Paginated<Adoption>;
+    filters: Filters;
   }>().props;
 
   const [editingPost, setEditingPost] = useState<Adoption | null>(null);
@@ -208,7 +225,6 @@ export default function ManageIndex() {
 
     const category = (post.category || "").toLowerCase();
 
-    // Dog / Cat specific labels
     if (category === "dog") {
       if (years < 1) return "Puppy";
       if (years <= 7) return "Adult";
@@ -221,13 +237,12 @@ export default function ManageIndex() {
       return "Senior";
     }
 
-    // Fallback generic
     if (years < 1) return "Young";
     if (years <= 7) return "Adult";
     return "Senior";
   };
 
-  /* ===================== Status Summary (top row) ===================== */
+  /* ===================== Status Summary ===================== */
 
   const statusSummary = useMemo(() => {
     const base = {
@@ -247,6 +262,43 @@ export default function ManageIndex() {
     });
     return base;
   }, [adoptions.data]);
+
+  /* ===================== Filters (category + status) ===================== */
+
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(
+    (filters?.status as StatusFilter) || "all"
+  );
+
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>(
+    (filters?.category as CategoryFilter) || "all"
+  );
+
+  const applyFilters = (nextStatus?: StatusFilter, nextCategory?: CategoryFilter) => {
+    const s = nextStatus ?? statusFilter;
+    const c = nextCategory ?? categoryFilter;
+
+    setStatusFilter(s);
+    setCategoryFilter(c);
+
+    const params: Record<string, string> = {};
+
+    if (s !== "all") {
+      params.status = s;
+    }
+
+    if (c !== "all") {
+      params.category = c;
+    }
+
+    if (filters?.q) {
+      params.q = String(filters.q);
+    }
+
+    router.get(route("manage.index"), params, {
+      preserveScroll: true,
+      preserveState: true,
+    });
+  };
 
   /* ===================== Actions ===================== */
 
@@ -271,7 +323,6 @@ export default function ManageIndex() {
     });
   };
 
-  // Prefill edit form gamit data ng post
   const openEdit = (post: Adoption) => {
     const existingBreed = post.breed || "";
     const isInList =
@@ -331,7 +382,7 @@ export default function ManageIndex() {
       <Head title="Manage Posts" />
 
       <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-        {/* Header */}
+        {/* Header + Total + Summary */}
         <div className="flex flex-col gap-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
@@ -339,47 +390,68 @@ export default function ManageIndex() {
                 <ClipboardList className="w-7 h-7 sm:w-8 sm:h-8 text-primary" />
                 Manage Adoption Posts
               </h1>
-
             </div>
             <div className="flex items-center gap-2 text-sm text-right">
-  <span className="text-muted-foreground">Total Posts:</span>
-  <span className="font-semibold text-lg">
-    {statusSummary.total}
-  </span>
-</div>
+              <span className="text-muted-foreground">Total Posts:</span>
+              <span className="font-semibold text-lg">{statusSummary.total}</span>
+            </div>
           </div>
 
-          {/* Status summary row */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 text-xs">
-            <div className="rounded-xl border border-border bg-card px-3 py-2 flex flex-col">
-              <span className="text-[11px] text-muted-foreground">Waiting</span>
-              <span className="font-semibold text-amber-600">
-                {statusSummary.waiting_for_approval}
+
+
+          {/* FILTER BAR: Category + Status */}
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            {/* Category filter */}
+            <div className="flex flex-wrap gap-2">
+              <span className="text-xs text-muted-foreground mr-1 mt-1">
+                Category:
               </span>
+              {[
+                { label: "All", value: "all" as CategoryFilter },
+                { label: "Dogs", value: "dog" as CategoryFilter },
+                { label: "Cats", value: "cat" as CategoryFilter },
+              ].map((c) => (
+                <button
+                  key={c.value}
+                  type="button"
+                  onClick={() => applyFilters(undefined, c.value)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                    categoryFilter === c.value
+                      ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                      : "bg-background text-foreground border-border hover:bg-muted"
+                  }`}
+                >
+                  {c.label}
+                </button>
+              ))}
             </div>
-            <div className="rounded-xl border border-border bg-card px-3 py-2 flex flex-col">
-              <span className="text-[11px] text-muted-foreground">Available</span>
-              <span className="font-semibold text-emerald-600">
-                {statusSummary.available}
+
+            {/* Status filter */}
+            <div className="flex flex-wrap gap-2">
+              <span className="text-xs text-muted-foreground mr-1 mt-1">
+                Status:
               </span>
-            </div>
-            <div className="rounded-xl border border-border bg-card px-3 py-2 flex flex-col">
-              <span className="text-[11px] text-muted-foreground">Pending</span>
-              <span className="font-semibold text-blue-600">
-                {statusSummary.pending}
-              </span>
-            </div>
-            <div className="rounded-xl border border-border bg-card px-3 py-2 flex flex-col">
-              <span className="text-[11px] text-muted-foreground">Adopted</span>
-              <span className="font-semibold text-slate-600">
-                {statusSummary.adopted}
-              </span>
-            </div>
-            <div className="rounded-xl border border-border bg-card px-3 py-2 flex flex-col">
-              <span className="text-[11px] text-muted-foreground">Rejected</span>
-              <span className="font-semibold text-rose-600">
-                {statusSummary.rejected}
-              </span>
+              {[
+                { label: "All", value: "all" as StatusFilter },
+                { label: "Waiting", value: "waiting_for_approval" as StatusFilter },
+                { label: "Available", value: "available" as StatusFilter },
+                { label: "Pending", value: "pending" as StatusFilter },
+                { label: "Adopted", value: "adopted" as StatusFilter },
+                { label: "Rejected", value: "rejected" as StatusFilter },
+              ].map((s) => (
+                <button
+                  key={s.value}
+                  type="button"
+                  onClick={() => applyFilters(s.value, undefined)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                    statusFilter === s.value
+                      ? "bg-primary/90 text-primary-foreground border-primary shadow-sm"
+                      : "bg-background text-foreground border-border hover:bg-muted"
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
             </div>
           </div>
         </div>

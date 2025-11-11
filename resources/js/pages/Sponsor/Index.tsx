@@ -1,6 +1,6 @@
 // resources/js/Pages/Sponsor/Index.tsx
 import React, { useMemo, useState } from "react";
-import { Head, router, Link, usePage, useForm } from "@inertiajs/react";
+import { Head, router, Link, useForm } from "@inertiajs/react";
 import AppLayout from "@/layouts/app-layout";
 import { route } from "ziggy-js";
 import type { BreadcrumbItem } from "@/types";
@@ -56,10 +56,7 @@ const statusColor: Record<SponsorStatus, string> = {
     "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
 };
 
-export default function SponsorIndex({ sponsors, filters }: PageProps) {
-  const page = usePage().props as any;
-  const flash = page?.flash ?? {};
-  const auth = page?.auth ?? {};
+export default function SponsorIndex({ sponsors, filters, auth }: PageProps) {
   const viewer = auth?.user ?? null;
 
   const role: Role =
@@ -189,21 +186,7 @@ export default function SponsorIndex({ sponsors, filters }: PageProps) {
     <AppLayout breadcrumbs={breadcrumbs}>
       <Head title="Sponsor QR Approvals" />
 
-      {/* Flash */}
-      {flash.success && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
-          <div className="bg-emerald-500 text-white px-4 py-3 rounded-xl text-sm font-semibold shadow">
-            {flash.success}
-          </div>
-        </div>
-      )}
-      {flash.error && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
-          <div className="bg-rose-500 text-white px-4 py-3 rounded-xl text-sm font-semibold shadow">
-            {flash.error}
-          </div>
-        </div>
-      )}
+      {/* wala nang inline flash; global FlashToast na sa layout */}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
@@ -212,7 +195,6 @@ export default function SponsorIndex({ sponsors, filters }: PageProps) {
             <h1 className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-violet-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
               Sponsor QR Requests
             </h1>
-            
           </div>
           <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
             Total Requests:{" "}

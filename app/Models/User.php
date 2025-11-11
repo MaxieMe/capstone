@@ -27,6 +27,8 @@ class User extends Authenticatable implements MustVerifyEmail
         'role',
         'barangay_permit',
         'is_approved',
+        'is_rejected',
+        'reject_reason',
     ];
 
     /**
@@ -53,6 +55,7 @@ class User extends Authenticatable implements MustVerifyEmail
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
             'is_approved' => 'boolean',
+            'is_rejected'  => 'boolean',
         ];
     }
     public function setNameAttribute($value)

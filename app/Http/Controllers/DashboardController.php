@@ -136,16 +136,19 @@ class DashboardController extends Controller
         }
 
         return Inertia::render('dashboard', [
-            'totals'          => $totals,
-            'byCategory'      => $byCategory,
-            'topBreeds'       => $topBreeds,
-            'withImage'       => $withImage,      // optional for UI
-            'recentAdoptions' => $recentAdoptions,
-            'pendingUsers'    => $pendingUsers,
-            'trend7d'         => $trend7d,
-            'trend12m'        => $trend12m,
-            'trendByCategory' => $trendByCategory,
-        ]);
+    'auth'           => [
+        'user' => $request->user(),
+    ],
+    'totals'          => $totals,
+    'byCategory'      => $byCategory,
+    'topBreeds'       => $topBreeds,
+    'withImage'       => $withImage,
+    'recentAdoptions' => $recentAdoptions,
+    'pendingUsers'    => $pendingUsers,
+    'trend7d'         => $trend7d,
+    'trend12m'        => $trend12m,
+    'trendByCategory' => $trendByCategory,
+]);
     }
 }
 

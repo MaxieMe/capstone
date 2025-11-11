@@ -15,9 +15,14 @@ class RoleController extends Controller
      */
     public function admin(Request $request)
     {
-        $users = User::orderByRaw('CASE WHEN is_approved = 0 THEN 0 ELSE 1 END')
-            ->orderBy('id', 'asc')
-            ->paginate(10)
+        $users = User::orderByRaw('CASE
+                WHEN is_approved = 0 AND is_rejected = 0 THEN 0   -- pending
+                WHEN is_approved = 1 THEN 1                      -- approved
+                WHEN is_rejected = 1 THEN 2                      -- rejected
+                ELSE 3
+            END')
+            ->orderBy('name', 'asc')
+            ->paginate(9)
             ->withQueryString();
 
         return Inertia::render('Manage/Users', [
@@ -45,17 +50,19 @@ class RoleController extends Controller
             return back()->with('error', 'Admins cannot approve other admins or superadmins.');
         }
 
-        $user->is_approved = true;
-        $user->save();
+        $user->update([
+            'is_approved'   => true,
+            'is_rejected'   => false,
+            'reject_reason' => null,
+        ]);
 
         return back()->with('success', "{$user->name} has been approved successfully!");
     }
 
     /**
-     * Reject (delete) a user (Admin or Superadmin only).
-     * Usually for pending users.
+     * Reject a user (mark as rejected, DO NOT delete).
      */
-    public function reject(User $user)
+    public function reject(Request $request, User $user)
     {
         $auth = Auth::user();
 
@@ -67,10 +74,17 @@ class RoleController extends Controller
             return back()->with('error', 'Admins cannot reject other admins or superadmins.');
         }
 
-        $name = $user->name;
-        $user->delete();
+        $data = $request->validate([
+            'reject_reason' => ['nullable', 'string', 'max:500'],
+        ]);
 
-        return back()->with('success', "{$name} has been rejected and removed.");
+        $user->update([
+            'is_approved'   => false,
+            'is_rejected'   => true,
+            'reject_reason' => $data['reject_reason'] ?? null,
+        ]);
+
+        return back()->with('success', "{$user->name} has been rejected.");
     }
 
     /**
@@ -95,26 +109,21 @@ class RoleController extends Controller
         return redirect()->route('admin.users')->with('success', "{$user->name} updated successfully!");
     }
 
-
-
     /**
-     * Permanently delete a user (Superadmin only, separate from reject).
+     * Permanently delete a user (Superadmin only, hiwalay sa reject).
      */
     public function destroy(Request $request, User $user)
     {
         $auth = $request->user();
 
-        // Only superadmin can hard-delete users (pwede mo palitan kung gusto mo i-allow admin)
         if (!$auth || $auth->role !== 'superadmin') {
             abort(403, 'You are not allowed to delete users.');
         }
 
-        // Huwag payagan burahin ang sarili
         if ($auth->id === $user->id) {
             return back()->with('error', 'You cannot delete your own account.');
         }
 
-        // Optional: huwag payagan mag-delete ng ibang superadmin
         if ($user->role === 'superadmin') {
             return back()->with('error', 'You cannot delete another superadmin.');
         }

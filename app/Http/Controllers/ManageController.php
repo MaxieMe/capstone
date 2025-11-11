@@ -14,37 +14,60 @@ class ManageController extends Controller
      * ✅ Lahat ng status (kasama rejected) lalabas dito,
      *    maliban na lang kung ifi-filter mo via ?status=...
      */
-    public function index(Request $request)
-    {
-        $query = Adoption::query()
-            ->with('user')
-            ->orderByDesc('created_at');
+   public function index(Request $request)
+{
+    $query = Adoption::query()
+        ->with('user');
 
-        // Optional filter by status (waiting_for_approval, available, pending, adopted, rejected)
-        if ($request->filled('status')) {
-            $query->where('status', $request->string('status'));
-        }
-
-        // Optional search
-        if ($request->filled('q')) {
-            $q = $request->string('q');
-            $query->where(function ($sub) use ($q) {
-                $sub->where('pname', 'like', "%{$q}%")
-                    ->orWhere('breed', 'like', "%{$q}%")
-                    ->orWhere('location', 'like', "%{$q}%");
-            });
-        }
-
-        $adoptions = $query->paginate(15)->withQueryString();
-
-        return Inertia::render('Manage/Index', [
-            'adoptions' => $adoptions,
-            'filters'   => [
-                'q'      => $request->input('q'),
-                'status' => $request->input('status'),
-            ],
-        ]);
+    // 🔹 filter by category (dog/cat)
+    if ($request->filled('category') && in_array($request->category, ['dog', 'cat'], true)) {
+        $query->where('category', $request->string('category'));
     }
+
+    // existing status filter
+    if ($request->filled('status')) {
+        $query->where('status', $request->string('status'));
+    }
+
+    // existing search...
+    if ($request->filled('q')) {
+        $q = $request->string('q');
+        $query->where(function ($sub) use ($q) {
+            $sub->where('pname', 'like', "%{$q}%")
+                ->orWhere('breed', 'like', "%{$q}%")
+                ->orWhere('location', 'like', "%{$q}%");
+        });
+    }
+
+    // yung custom order mo gamit CASE dito pa rin
+    $query
+        ->orderByRaw("
+            CASE status
+                WHEN 'waiting_for_approval' THEN 1
+                WHEN 'available'           THEN 2
+                WHEN 'pending'             THEN 3
+                WHEN 'adopted'             THEN 4
+                WHEN 'rejected'            THEN 5
+                ELSE 99
+            END
+        ")
+        ->orderByRaw("LOWER(pname) ASC")
+        ->orderByDesc('created_at');
+
+    $adoptions = $query->paginate(9)->withQueryString();
+
+    return Inertia::render('Manage/Index', [
+        'adoptions' => $adoptions,
+        'filters'   => [
+            'q'        => $request->input('q'),
+            'status'   => $request->input('status'),
+            'category' => $request->input('category'),
+        ],
+    ]);
+}
+
+
+
 
     /**
      * Approve a post (make it visible on adoption list).
@@ -137,7 +160,7 @@ class ManageController extends Controller
             });
         }
 
-        $inquiries = $query->paginate(20)->withQueryString();
+        $inquiries = $query->paginate(9)->withQueryString();
 
         return Inertia::render('Manage/TransactionHistory', [
             'inquiries' => $inquiries,

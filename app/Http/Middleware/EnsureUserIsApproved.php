@@ -4,7 +4,6 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -17,15 +16,23 @@ class EnsureUserIsApproved
     {
         $user = $request->user();
 
-        // ✅ 1. Allow guests and superadmin to proceed freely
-        if (!$user || $user->role === 'superadmin') {
+        // 1) Guests or superadmin → hayaan lang (iba pang middleware bahala sa auth)
+        if (! $user || ($user->role ?? null) === 'superadmin') {
             return $next($request);
         }
 
-        // ✅ 2. If not approved and NOT already on "pending" route → redirect
-        if (!$user->is_approved && !$request->routeIs('pending')) {
+        // 2) Flag kung approved
+        $isApproved = (bool) ($user->is_approved ?? false);
 
-            // 👇 Don't log out immediately, just send them to /pending
+        // 3) Mga route na allowed kahit hindi approved (pending / rejected)
+        $allowedRoutes = [
+            'pending',
+            'pending.resubmit', // 🔥 importante
+            'logout',
+        ];
+
+        // 4) Kung hindi approved (pending/rejected) at hindi papunta sa allowed routes
+        if (! $isApproved && ! $request->routeIs($allowedRoutes)) {
             if ($request->inertia()) {
                 return Inertia::location(route('pending'));
             }
@@ -33,7 +40,7 @@ class EnsureUserIsApproved
             return redirect()->route('pending');
         }
 
-        // ✅ 3. If user is approved → continue normally
+        // 5) Approved user → tuloy lang
         return $next($request);
     }
 }

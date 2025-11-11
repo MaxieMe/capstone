@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import AppLayout from "@/layouts/app-layout";
 import { Head, usePage, router } from "@inertiajs/react";
 import { Button } from "@/components/ui/button";
@@ -22,17 +22,23 @@ import {
   Check,
   X,
   Trash2,
+  XCircle,
 } from "lucide-react";
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: "Manage Users", href: "/Users" }];
+
+type Role = "user" | "admin" | "superadmin";
+type UserStatus = "pending" | "approved" | "rejected";
+type StatusFilter = "all" | UserStatus;
 
 interface User {
   id: number;
   name: string;
   email: string;
-  role: "user" | "admin" | "superadmin";
+  role: Role;
   barangay_permit: string | null;
-  is_approved: boolean | number; // allow 0/1 or true/false
+  is_approved: boolean | number; // 0/1 or true/false
+  is_rejected?: boolean | number | null; // optional, depende sa backend
 }
 
 interface Paginated<T> {
@@ -41,12 +47,53 @@ interface Paginated<T> {
 }
 
 export default function Users() {
-  const { auth, users } = usePage<{ auth: { user: User }; users: Paginated<User> }>().props;
+  const { auth, users } = usePage<{ auth: { user: User }; users: Paginated<User> }>()
+    .props;
+
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [form, setForm] = useState({ name: "", email: "", role: "user" });
+  const [form, setForm] = useState({ name: "", email: "", role: "user" as Role });
 
   /* ===================== Permissions ===================== */
   const canEditAnything = auth.user.role === "superadmin";
+
+  /* ===================== Status Helper ===================== */
+
+  const getUserStatus = (user: User): UserStatus => {
+    const approved = !!user.is_approved;
+    const rejected = !!user.is_rejected;
+
+    if (approved) return "approved";
+    if (rejected) return "rejected";
+    return "pending";
+  };
+
+  /* ===================== Filters ===================== */
+
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+
+  const filteredAndSortedUsers = useMemo(() => {
+    const statusOrder: Record<UserStatus, number> = {
+      pending: 1,
+      approved: 2,
+      rejected: 3,
+    };
+
+    const filtered =
+      statusFilter === "all"
+        ? users.data
+        : users.data.filter((u) => getUserStatus(u) === statusFilter);
+
+    const sorted = [...filtered].sort((a, b) => {
+      const sa = statusOrder[getUserStatus(a)];
+      const sb = statusOrder[getUserStatus(b)];
+
+      if (sa !== sb) return sa - sb; // priority: pending → approved → rejected
+
+      return a.name.localeCompare(b.name); // A–Z by name
+    });
+
+    return sorted;
+  }, [users.data, statusFilter]);
 
   /* ===================== Approve / Reject ===================== */
   const handleApprove = (id: number) => {
@@ -60,7 +107,8 @@ export default function Users() {
 
   /* ===================== Delete User ===================== */
   const handleDelete = (id: number) => {
-    if (!window.confirm("Are you sure you want to permanently delete this user?")) return;
+    if (!window.confirm("Are you sure you want to permanently delete this user?"))
+      return;
 
     router.delete(`/users/${id}`, {
       preserveScroll: true,
@@ -99,26 +147,44 @@ export default function Users() {
         ? "bg-blue-500/10 text-blue-400 ring-1 ring-inset ring-blue-400/20"
         : "bg-slate-500/10 text-slate-400 ring-1 ring-inset ring-slate-400/20";
     return (
-      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${styles}`}>
+      <span
+        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${styles}`}
+      >
         <Shield className="w-3 h-3 mr-1" />
         {role}
       </span>
     );
   };
 
-  const StatusBadge = ({ approved }: { approved: boolean }) => {
-    return approved ? (
-      <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-emerald-500/10 text-emerald-400 ring-1 ring-inset ring-emerald-400/20">
-        <CheckCircle className="w-3 h-3 mr-1" />
-        Approved
-      </span>
-    ) : (
+  const StatusBadge = ({ status }: { status: UserStatus }) => {
+    if (status === "approved") {
+      return (
+        <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-emerald-500/10 text-emerald-400 ring-1 ring-inset ring-emerald-400/20">
+          <CheckCircle className="w-3 h-3 mr-1" />
+          Approved
+        </span>
+      );
+    }
+
+    if (status === "rejected") {
+      return (
+        <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-rose-500/10 text-rose-400 ring-1 ring-inset ring-rose-400/20">
+          <XCircle className="w-3 h-3 mr-1" />
+          Rejected
+        </span>
+      );
+    }
+
+    // pending
+    return (
       <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-amber-500/10 text-amber-400 ring-1 ring-inset ring-amber-400/20">
         <Clock className="w-3 h-3 mr-1" />
         Pending
       </span>
     );
   };
+
+  /* ===================== Render ===================== */
 
   return (
     <AppLayout breadcrumbs={breadcrumbs}>
@@ -136,9 +202,37 @@ export default function Users() {
           </div>
           <div className="flex items-center gap-2 text-sm">
             <span className="text-muted-foreground">Total Users:</span>
-            <span className="font-semibold text-lg">{users.data.length}</span>
+            <span className="font-semibold text-lg">
+              {filteredAndSortedUsers.length}
+            </span>
           </div>
         </div>
+
+        {/* FILTER BAR: Status */}
+        {users.data.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            <span className="text-xs text-muted-foreground mt-1 mr-1">Status:</span>
+            {[
+              { label: "All", value: "all" as StatusFilter },
+              { label: "Pending", value: "pending" as StatusFilter },
+              { label: "Approved", value: "approved" as StatusFilter },
+              { label: "Rejected", value: "rejected" as StatusFilter },
+            ].map((f) => (
+              <button
+                key={f.value}
+                type="button"
+                onClick={() => setStatusFilter(f.value)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                  statusFilter === f.value
+                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                    : "bg-background text-foreground border-border hover:bg-muted"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Empty State */}
         {users.data.length === 0 ? (
@@ -148,7 +242,8 @@ export default function Users() {
             </div>
             <h2 className="text-xl font-semibold">No users yet</h2>
             <p className="mt-2 text-sm text-muted-foreground max-w-sm mx-auto">
-              New users will appear here once they register. You'll be able to approve and manage them.
+              New users will appear here once they register. You'll be able to approve
+              and manage them.
             </p>
           </div>
         ) : (
@@ -169,12 +264,13 @@ export default function Users() {
                 </thead>
 
                 <tbody>
-                  {users.data.map((user) => {
-                    const isApproved = !!user.is_approved;
+                  {filteredAndSortedUsers.map((user) => {
+                    const status = getUserStatus(user);
+                    const isApproved = status === "approved";
 
                     const canApproveReject =
                       ["admin", "superadmin"].includes(auth.user.role) &&
-                      !isApproved &&
+                      status === "pending" &&
                       user.id !== auth.user.id;
 
                     const canEdit = canEditAnything && isApproved;
@@ -187,8 +283,10 @@ export default function Users() {
                       <tr
                         key={user.id}
                         className={`border-b border-border transition-colors ${
-                          !isApproved
+                          status === "pending"
                             ? "bg-amber-50/60 dark:bg-amber-950/20"
+                            : status === "rejected"
+                            ? "bg-rose-50/60 dark:bg-rose-950/20"
                             : "hover:bg-muted/50"
                         }`}
                       >
@@ -233,7 +331,7 @@ export default function Users() {
                           )}
                         </td>
                         <td className="p-4 align-middle text-center">
-                          <StatusBadge approved={isApproved} />
+                          <StatusBadge status={status} />
                         </td>
                         <td className="p-4 align-middle">
                           <div className="flex flex-wrap items-center justify-center gap-2">
@@ -296,12 +394,13 @@ export default function Users() {
 
             {/* Mobile Card View */}
             <div className="md:hidden space-y-4">
-              {users.data.map((user) => {
-                const isApproved = !!user.is_approved;
+              {filteredAndSortedUsers.map((user) => {
+                const status = getUserStatus(user);
+                const isApproved = status === "approved";
 
                 const canApproveReject =
                   ["admin", "superadmin"].includes(auth.user.role) &&
-                  !isApproved &&
+                  status === "pending" &&
                   user.id !== auth.user.id;
 
                 const canEdit = canEditAnything && isApproved;
@@ -314,8 +413,10 @@ export default function Users() {
                   <div
                     key={user.id}
                     className={`rounded-xl border border-border bg-card p-4 shadow-sm transition-all ${
-                      !isApproved
+                      status === "pending"
                         ? "bg-amber-50/60 dark:bg-amber-950/20 ring-2 ring-amber-500/20"
+                        : status === "rejected"
+                        ? "bg-rose-50/60 dark:bg-rose-950/20 ring-2 ring-rose-500/20"
                         : ""
                     }`}
                   >
@@ -326,9 +427,11 @@ export default function Users() {
                           <span className="font-mono text-xs bg-muted px-2 py-0.5 rounded">
                             #{user.id}
                           </span>
-                          <StatusBadge approved={isApproved} />
+                          <StatusBadge status={status} />
                         </div>
-                        <h3 className="font-semibold text-base truncate">{user.name}</h3>
+                        <h3 className="font-semibold text-base truncate">
+                          {user.name}
+                        </h3>
                         <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1 truncate">
                           <Mail className="w-3.5 h-3.5 flex-shrink-0" />
                           <span className="truncate">{user.email}</span>
@@ -340,7 +443,9 @@ export default function Users() {
                     {/* Barangay Permit */}
                     {user.barangay_permit && (
                       <div className="mb-3">
-                        <p className="text-xs text-muted-foreground mb-2">Barangay Permit:</p>
+                        <p className="text-xs text-muted-foreground mb-2">
+                          Barangay Permit:
+                        </p>
                         <a
                           href={`/storage/${user.barangay_permit}`}
                           target="_blank"
@@ -472,7 +577,7 @@ export default function Users() {
                     className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring transition-all"
                     value={form.role}
                     onChange={(e) =>
-                      setForm({ ...form, role: e.target.value as User["role"] })
+                      setForm({ ...form, role: e.target.value as Role })
                     }
                   >
                     <option value="user">User</option>
@@ -489,10 +594,7 @@ export default function Users() {
                   >
                     Cancel
                   </Button>
-                  <Button
-                    onClick={handleSave}
-                    className="w-full sm:w-auto"
-                  >
+                  <Button onClick={handleSave} className="w-full sm:w-auto">
                     <Check className="w-4 h-4 mr-1" />
                     Save Changes
                   </Button>

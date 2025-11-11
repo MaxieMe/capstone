@@ -107,41 +107,91 @@ class AdoptionController extends Controller
                     'adoptions as total_posts_count',
                 ])
                 ->orderBy('name')
-                ->paginate(12)
+                ->paginate(9)
                 ->withQueryString();
 
-            // Transform users → may featured_pet na may image_url
-            $guestUsers->getCollection()->transform(function (User $u) {
-                $featured = $u->adoptions->first(); // latest available pet
-                $featuredPet = null;
+            // ------------------ GUEST USERS QUERY (para sa guest view) ------------------
+$guestUsers = null;
 
-                if ($featured) {
-                    $ageText   = $this->ageText($featured->age, $featured->age_unit);
-                    $lifeStage = $this->computeLifeStage($featured->category, $featured->age, $featured->age_unit);
+if (!$user) {
+    $guestUsers = User::query()
+        // ✅ guest can see owners na may AVAILABLE *or* PENDING pets
+        ->whereHas('adoptions', function ($q) {
+            $q->whereIn('status', ['available', 'pending']);
+        })
+        ->when(
+            $request->filled('q'),
+            function ($q) use ($request) {
+                $search = $request->string('q');
+                $q->where('name', 'like', "%{$search}%");
+            }
+        )
+        // Kukunin natin pets na available + pending (for featured selection)
+        ->with([
+            'adoptions' => function ($q) {
+                $q->whereIn('status', ['available', 'pending'])
+                    ->latest()
+                    ->take(3); // konting buffer, para makapili ng featured
+            },
+        ])
+        ->withCount([
+            // available count stays as-is (totoong "available" lang)
+            'adoptions as available_posts_count' => function ($q) {
+                $q->where('status', 'available');
+            },
+            // total_posts_count = lahat ng adoptions niya (kahit anong status)
+            'adoptions as total_posts_count',
+        ])
+        ->orderBy('name')
+        ->paginate(9)
+        ->withQueryString();
 
-                    $imageUrl = $featured->image_path
-                        ? asset('storage/' . $featured->image_path)
-                        : null;
+    // Transform users → may featured_pet na may image_url
+    $guestUsers->getCollection()->transform(function (User $u) {
+        // ✅ featured pet priority:
+        //  1) kung may available, yun kunin
+        //  2) kung wala, fallback sa first pending
+        $featured = $u->adoptions
+            ->sortByDesc('created_at')
+            ->firstWhere('status', 'available');
 
-                    $featuredPet = (object)[
-                        'id'         => $featured->id,
-                        'pname'      => $featured->pname,
-                        'image_url'  => $imageUrl,
-                        'location'   => $featured->location,
-                        'category'   => $featured->category,
-                        'age_text'   => $ageText,
-                        'life_stage' => $lifeStage,
-                    ];
-                }
+        if (!$featured) {
+            $featured = $u->adoptions
+                ->sortByDesc('created_at')
+                ->firstWhere('status', 'pending');
+        }
 
-                return (object)[
-                    'id'                     => $u->id,
-                    'name'                   => $u->name,
-                    'available_posts_count'  => $u->available_posts_count,
-                    'total_posts_count'      => $u->total_posts_count,
-                    'featured_pet'           => $featuredPet,
-                ];
-            });
+        $featuredPet = null;
+
+        if ($featured) {
+            $ageText   = $this->ageText($featured->age, $featured->age_unit);
+            $lifeStage = $this->computeLifeStage($featured->category, $featured->age, $featured->age_unit);
+
+            $imageUrl = $featured->image_path
+                ? asset('storage/' . $featured->image_path)
+                : null;
+
+            $featuredPet = (object) [
+                'id'         => $featured->id,
+                'pname'      => $featured->pname,
+                'image_url'  => $imageUrl,
+                'location'   => $featured->location,
+                'category'   => $featured->category,
+                'age_text'   => $ageText,
+                'life_stage' => $lifeStage,
+            ];
+        }
+
+        return (object) [
+            'id'                    => $u->id,
+            'name'                  => $u->name,
+            'available_posts_count' => $u->available_posts_count,
+            'total_posts_count'     => $u->total_posts_count,
+            'featured_pet'          => $featuredPet,
+        ];
+    });
+}
+
         }
 
         return Inertia::render('Adoption/Index', [

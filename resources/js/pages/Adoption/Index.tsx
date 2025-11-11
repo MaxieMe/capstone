@@ -48,27 +48,19 @@ type Pet = {
   is_approved?: boolean;
 };
 
-// ✅ Match sa backend: may featured_pet object
 type GuestUser = {
   id: number;
   name: string;
-  available_posts_count: number;
-  total_posts_count: number;
-  featured_pet?: {
-    id: number;
-    pname: string;
-    image_url?: string | null;
-    location?: string | null;
-    category?: string | null;
-    age_text?: string | null;
-    life_stage?: string | null;
-  } | null;
+  cover_url?: string | null;
+  available_posts_count?: number;
+  total_posts_count?: number;
+  featured_pet?: { image_url?: string | null } | null;
 };
 
 type PaginationLink = { url: string | null; label: string; active: boolean };
 
 type PageProps = {
-  adoption: Paginated<Pet> | any;
+  adoption: any;
   guestUsers?: { data: GuestUser[]; links: PaginationLink[] } | null;
   filters?: { q?: string; category?: string; gender?: string };
 };
@@ -100,14 +92,14 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
   // guest search (for guest user directory)
   const guestSearchForm = useForm({ q: filters?.q ?? '' });
 
-  // pets list (for authenticated adoption view)
+  // pets list (used for authenticated view)
   const list: Pet[] = Array.isArray(adoption?.data) ? adoption.data : [];
 
   const filteredPets = useMemo(() => {
     return list
       .filter((pet) => {
-        // Auth: backend na nagbigay ng available + pending
-        // Guest: available lang (extra guard lang, kahit backend filtered na)
+        // Auth: kung ano binigay ng backend (available + pending)
+        // Guest: available lang (pero backend na mismo nag fi-filter, extra guard lang)
         const availableOnly = isAuthenticated
           ? true
           : (pet.status || '').toLowerCase() === 'available';
@@ -116,12 +108,10 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
           activeCategory === 'All' ||
           (pet.category &&
             pet.category.toLowerCase() === activeCategory.toLowerCase());
-
         const genderMatch =
           activeGender === 'All' ||
           (pet.gender &&
             pet.gender.toLowerCase() === activeGender.toLowerCase());
-
         return availableOnly && categoryMatch && genderMatch;
       })
       .sort(
@@ -173,7 +163,6 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
     setShowModal(true);
   };
 
-  // Open edit modal (hindi ginagamit sa adoption page ngayon – profile modal ang primary)
   const openEditModal = (pet: Pet) => {
     setEditingPet(pet);
     clearErrors();
@@ -219,7 +208,6 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
         : data.breed;
 
     if (editingPet) {
-      // edit → PUT /adoption/{id}
       transform((formData) => ({
         ...formData,
         breed: finalBreed,
@@ -233,7 +221,6 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
         },
       });
     } else {
-      // create → POST /adoption
       transform((formData) => ({
         ...formData,
         breed: finalBreed,
@@ -258,6 +245,16 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
     );
   };
 
+  const handleConfirmPending = (pet: Pet) => {
+    if (!confirm('Mark this pet as adopted?')) return;
+
+    router.post(
+      route('adoption.markAdopted', pet.id),
+      {},
+      { preserveScroll: true }
+    );
+  };
+
   const handleDelete = (pet: Pet) => {
     if (!confirm('Are you sure you want to delete this post?')) return;
 
@@ -268,6 +265,11 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
 
   const getName = (u?: ProfileUser | null) =>
     (u?.name && u.name.trim()) || '';
+
+  const visitProfile = (pet: Pet) => {
+    const name = getName(pet.user);
+    if (name) router.visit(route('profile.show', { name }));
+  };
 
   const prevLink = adoption?.links?.[0];
   const nextLink = adoption?.links?.[adoption?.links?.length - 1];
@@ -336,9 +338,6 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {users.map((u) => {
                   const name = (u.name && u.name.trim()) || '';
-                  const featuredImage =
-                    u.featured_pet?.image_url || PLACEHOLDER;
-
                   return (
                     <div
                       key={u.id}
@@ -346,7 +345,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                     >
                       <div className="relative h-40">
                         <img
-                          src={featuredImage}
+                          src={u.featured_pet?.image_url || PLACEHOLDER}
                           alt={u.name}
                           className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                           onError={(e) => {
@@ -392,13 +391,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                           >
                             Visit Profile
                           </Link>
-                          <Link
-                            href={route('adoption.index')}
-                            className="px-4 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                            title="Browse Pets"
-                          >
-                            🐾
-                          </Link>
+
                         </div>
                       </div>
                     </div>
@@ -871,7 +864,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
             {filteredPets.map((pet) => (
               <div
                 key={pet.id}
-                className="group relative bg-white dark:bg_gray-800 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden transform hover:-translate-y-2"
+                className="group relative bg-white dark:bg-gray-800 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden transform hover:-translate-y-2"
               >
                 {/* Status */}
                 <div className="absolute top-3 right-3 z-10">
@@ -948,29 +941,31 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                     >
                       About me
                     </Link>
-                    <Link
-                      href={route('adoption.index')}
-                      className="px-4 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                      title="Browse more"
-                    >
-                      🐾
-                    </Link>
+
                   </div>
 
-                  {/* Second row: Owner actions (NO EDIT BUTTON HERE) */}
+                  {/* Second row: Owner actions */}
                   {isOwner(pet) && (
                     <div className="mt-3 flex flex-wrap gap-2">
                       {pet.status === 'pending' ? (
-                        // ✅ Kung pending → Cancel lang
-                        <button
-                          onClick={() => handleCancelPending(pet)}
-                          className="flex-1 min-w-[90px] text-center border-2 border-amber-500 text-amber-600 dark:text-amber-300 rounded-xl py-2 text-sm font-semibold hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-all"
-                        >
-                          Cancel
-                        </button>
+                        <>
+                          {/* Pending → Cancel + Confirm */}
+                          <button
+                            onClick={() => handleCancelPending(pet)}
+                            className="flex-1 min-w-[90px] text-center border-2 border-amber-500 text-amber-600 dark:text-amber-300 rounded-xl py-2 text-sm font-semibold hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-all"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => handleConfirmPending(pet)}
+                            className="flex-1 min-w-[90px] text-center border-2 border-emerald-500 text-emerald-600 dark:text-emerald-300 rounded-xl py-2 text-sm font-semibold hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-all"
+                          >
+                            Confirm
+                          </button>
+                        </>
                       ) : (
                         <>
-                          {/* ❌ WALA NANG EDIT BUTTON DITO */}
+                          {/* Adopted or other → Delete only */}
                           <button
                             onClick={() => handleDelete(pet)}
                             className="flex-1 min-w-[90px] text-center border-2 border-rose-500 text-rose-600 dark:text-rose-300 rounded-xl py-2 text-sm font-semibold hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-all"

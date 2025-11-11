@@ -241,12 +241,6 @@ export default function ProfileShow({ profile, pets }: PageProps) {
             </div>
 
             <div className="flex gap-2">
-              <Link
-                href={route('adoption.index')}
-                className="inline-flex items-center gap-2 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 font-semibold px-4 py-2 rounded-xl transition-colors"
-              >
-                ← Back to Adoption
-              </Link>
               <button
                 type="button"
                 onClick={() => alert('Sponsor feature coming soon')}

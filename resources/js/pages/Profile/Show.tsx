@@ -7,13 +7,19 @@ import { type BreadcrumbItem } from '@/types';
 import { CAT_BREEDS, DOG_BREEDS } from '@/components1/breed';
 import { DisableScroll } from '@/components1/disable-scroll';
 import { XButton } from '@/components1/x-button';
-import { PlusButton } from '@/components1/plus-button';
 
 type Role = 'user' | 'admin' | 'superadmin';
 
 type ProfileUser = {
   id: number;
   name: string;
+};
+
+type Sponsor = {
+  id: number;
+  status: 'waiting_for_approval' | 'approved' | 'rejected';
+  reject_reason?: string | null;
+  qr_url?: string | null;
 };
 
 type Pet = {
@@ -46,13 +52,14 @@ type Pet = {
 type PageProps = {
   profile: ProfileUser;
   pets: Pet[];
+  sponsor?: Sponsor | null;
   auth?: { user?: any };
 };
 
 const PLACEHOLDER =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="420"><rect width="100%" height="100%" fill="%23e5e7eb"/><text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle" fill="%239ca3af" font-size="24" font-family="system-ui">🐾</text><text x="50%" y="60%" dominant-baseline="middle" text-anchor="middle" fill="%239ca3af" font-size="16" font-family="system-ui">No Photo Available</text></svg>';
 
-export default function ProfileShow({ profile, pets }: PageProps) {
+export default function ProfileShow({ profile, pets, sponsor }: PageProps) {
   const page = usePage().props as any;
   const auth = page?.auth ?? {};
   const viewer = auth?.user ?? null;
@@ -93,7 +100,7 @@ export default function ProfileShow({ profile, pets }: PageProps) {
       );
   }, [pets, activeCategory, activeStatus]);
 
-  /* =================== EDIT MODAL STATE =================== */
+  /* =================== EDIT PET MODAL STATE =================== */
   const [showModal, setShowModal] = useState(false);
   const [editingPet, setEditingPet] = useState<Pet | null>(null);
 
@@ -174,7 +181,7 @@ export default function ProfileShow({ profile, pets }: PageProps) {
     transform((formData) => ({
       ...formData,
       breed: finalBreed,
-      _method: 'PUT', // para sa Route::put('/adoption/{adoption}')
+      _method: 'PUT',
     }));
 
     post(route('adoption.update', editingPet.id), {
@@ -185,6 +192,53 @@ export default function ProfileShow({ profile, pets }: PageProps) {
       },
     });
   };
+
+  /* =================== SPONSOR QR MODAL =================== */
+  const [showSponsorModal, setShowSponsorModal] = useState(false);
+  const [showSponsorViewModal, setShowSponsorViewModal] = useState(false);
+
+  const {
+    data: sponsorForm,
+    setData: setSponsorData,
+    post: sponsorPost,
+    processing: sponsorProcessing,
+    errors: sponsorErrors,
+    reset: sponsorReset,
+    clearErrors: sponsorClearErrors,
+  } = useForm({
+    qr: null as File | null,
+  });
+
+  const openSponsorModal = () => {
+    sponsorClearErrors();
+    sponsorReset();
+    setShowSponsorModal(true);
+  };
+
+  const closeSponsorModal = () => {
+    setShowSponsorModal(false);
+    sponsorReset();
+    sponsorClearErrors();
+  };
+
+  const handleSponsorSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    sponsorPost(route('sponsor.store'), {
+      forceFormData: true,
+      preserveScroll: true,
+      onSuccess: () => {
+        closeSponsorModal();
+      },
+    });
+  };
+
+  // ✅ Owner dapat makita QR kahit anong status (basta may qr_url)
+  const hasAnyQr = !!sponsor && !!sponsor.qr_url;
+
+  // ✅ Public / non-owner: makakakita lang pag approved
+  const hasPublicQr =
+    !!sponsor && sponsor.status === 'approved' && !!sponsor.qr_url;
 
   /* =================== ACTIONS =================== */
 
@@ -208,15 +262,45 @@ export default function ProfileShow({ profile, pets }: PageProps) {
     );
   };
 
-  // Edit button lalabas lang kung rejected
   const canShowEdit = (pet: Pet) => {
     if (!isOwner) return false;
     return pet.status === 'rejected';
   };
 
+  const sponsorStatusBadge = () => {
+    if (!sponsor) return null;
+    if (sponsor.status === 'approved') {
+      return (
+        <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold">
+          ✅ Sponsor QR Approved
+        </span>
+      );
+    }
+    if (sponsor.status === 'waiting_for_approval') {
+      return (
+        <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">
+          ⏳ Sponsor QR is waiting for approval
+        </span>
+      );
+    }
+    if (sponsor.status === 'rejected') {
+      return (
+        <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-rose-100 text-rose-700 text-xs font-semibold">
+          ⚠️ Sponsor QR rejected
+        </span>
+      );
+    }
+    return null;
+  };
+
   return (
     <AppLayout breadcrumbs={breadcrumbs}>
       <Head title={`${profile.name}'s Profile`} />
+
+      {/* Disable scroll kapag may kahit anong modal */}
+      <DisableScroll
+        showModal={showModal || showSponsorModal || showSponsorViewModal}
+      />
 
       {/* Header */}
       <div className="relative overflow-hidden py-10 sm:py-14">
@@ -237,28 +321,53 @@ export default function ProfileShow({ profile, pets }: PageProps) {
                 <span className="px-3 py-1 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 text-sm font-semibold">
                   {pets?.length ?? 0} posts
                 </span>
+
+                {sponsorStatusBadge()}
               </div>
             </div>
 
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => alert('Sponsor feature coming soon')}
-                className="inline-flex items-center gap-2 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white font-semibold px-4 py-2 rounded-xl transition-colors"
-              >
-                Sponsor
-              </button>
+            {/* Sponsor buttons */}
+            <div className="flex flex-col items-end gap-2">
+              {isOwner ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={openSponsorModal}
+                    className="inline-flex items-center gap-2 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white font-semibold px-4 py-2 rounded-xl transition-colors"
+                  >
+                    {sponsor ? 'Update Sponsor QR' : 'Upload Sponsor QR'}
+                  </button>
+
+                  {hasAnyQr && (
+                    <button
+                      type="button"
+                      onClick={() => setShowSponsorViewModal(true)}
+                      className="inline-flex items-center gap-2 mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-800 dark:text-gray-100 font-semibold px-4 py-2 rounded-xl text-sm transition-colors"
+                    >
+                      View QR Code
+                    </button>
+                  )}
+                </>
+              ) : (
+                hasPublicQr && (
+                  <button
+                    type="button"
+                    onClick={() => setShowSponsorViewModal(true)}
+                    className="inline-flex items-center gap-2 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white font-semibold px-4 py-2 rounded-xl transition-colors"
+                  >
+                    Sponsor Me
+                  </button>
+                )
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Edit Modal */}
-      <DisableScroll showModal={showModal} />
+      {/* Edit Pet Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center p-4 bg-black/60 backdrop-blur-sm pt-32">
           <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-t-2xl bg-white dark:bg-gray-800 shadow-2xl">
-            {/* Header */}
             <div className="sticky top-0 z-10 bg-gradient-to-r from-violet-600 to-purple-600 p-6 rounded-t-2xl">
               <div className="flex items-center justify-between">
                 <div>
@@ -551,6 +660,147 @@ export default function ProfileShow({ profile, pets }: PageProps) {
         </div>
       )}
 
+      {/* Sponsor QR Upload / Update Modal */}
+      {showSponsorModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center p-4 bg-black/60 backdrop-blur-sm pt-32">
+          <div className="relative w-full max-w-md max-h-[90vh] overflow-y-auto rounded-t-2xl bg-white dark:bg-gray-800 shadow-2xl">
+            <div className="sticky top-0 z-10 bg-gradient-to-r from-violet-600 to-purple-600 p-4 rounded-t-2xl">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold text-white">
+                  {sponsor ? 'Update Sponsor QR' : 'Upload Sponsor QR'}
+                </h2>
+                <button
+                  onClick={closeSponsorModal}
+                  className="text-white hover:bg-white/20 rounded-full p-1.5 transition-colors"
+                  aria-label="Close"
+                >
+                  <XButton />
+                </button>
+              </div>
+            </div>
+
+            <form
+              onSubmit={handleSponsorSubmit}
+              encType="multipart/form-data"
+              className="p-5 space-y-4"
+            >
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Upload a QR code image that people can scan to send support
+                (e.g., GCash, PayPal, etc.). Your QR will be reviewed by an
+                admin before it becomes visible on your profile.
+              </p>
+
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                  QR Image <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                      setSponsorData('qr', e.target.files[0]);
+                    }
+                  }}
+                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-6 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100 dark:file:bg-violet-900/30 dark:file:text-violet-300 file:cursor-pointer"
+                  required
+                />
+                {sponsorErrors.qr && (
+                  <p className="text-red-500 text-xs mt-1">
+                    {sponsorErrors.qr}
+                  </p>
+                )}
+              </div>
+
+              {sponsor &&
+                sponsor.status === 'rejected' &&
+                sponsor.reject_reason && (
+                  <div className="text-xs text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-700 rounded-xl p-2">
+                    <strong>Previous rejection reason:</strong>{' '}
+                    {sponsor.reject_reason}
+                  </div>
+                )}
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={closeSponsorModal}
+                  className="flex-1 px-4 py-2.5 rounded-xl border-2 border-gray-300 dark:border-gray-600 font-semibold text-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={sponsorProcessing}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 text-white font-semibold text-sm hover:from-violet-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg"
+                >
+                  {sponsorProcessing
+                    ? sponsor
+                      ? 'Updating...'
+                      : 'Uploading...'
+                    : sponsor
+                    ? 'Update QR'
+                    : 'Upload QR'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* FULL-SCREEN QR VIEW MODAL (owner: kahit waiting/rejected, others: only approved) */}
+      {showSponsorViewModal &&
+        sponsor?.qr_url &&
+        (isOwner || sponsor.status === 'approved') && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+            onClick={() => setShowSponsorViewModal(false)}
+          >
+            <div
+              className="relative max-w-[95vw] max-h-[90vh] flex flex-col items-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={() => setShowSponsorViewModal(false)}
+                className="absolute -top-10 right-0 text-white hover:text-gray-200"
+                aria-label="Close"
+              >
+                <XButton />
+              </button>
+
+              <h2 className="text-lg sm:text-xl font-semibold text-white mb-4 text-center">
+                Sponsor {profile.name}
+              </h2>
+
+              <a
+                href={sponsor.qr_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block"
+                title="Open QR code in a new tab"
+              >
+                <img
+                  src={sponsor.qr_url}
+                  alt="Sponsor QR code"
+                  className="max-w-[90vw] max-h-[80vh] object-contain bg-white rounded-2xl shadow-2xl"
+                />
+              </a>
+
+              <p className="mt-4 text-xs sm:text-sm text-gray-200 text-center max-w-md">
+                Tap or click the QR code to open it in a new tab, or scan it
+                directly using your camera or payment app.
+              </p>
+
+              {isOwner && sponsor.status !== 'approved' && (
+                <p className="mt-2 text-[11px] sm:text-xs text-amber-200 text-center max-w-md">
+                  This QR is still not approved yet, so only you can see it for
+                  now.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
       {/* Filters */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-4 sm:p-6">
@@ -710,11 +960,9 @@ export default function ProfileShow({ profile, pets }: PageProps) {
                     </Link>
                   </div>
 
-                  {/* Owner actions */}
                   {isOwner && (
                     <div className="mt-3 flex flex-wrap gap-2">
                       {pet.status === 'pending' ? (
-                        // Pending → Cancel lang
                         <button
                           type="button"
                           onClick={() => handleCancelPending(pet.id)}
@@ -724,7 +972,6 @@ export default function ProfileShow({ profile, pets }: PageProps) {
                         </button>
                       ) : (
                         <>
-                          {/* Edit button lalabas lang kung REJECTED */}
                           {canShowEdit(pet) && (
                             <button
                               type="button"
@@ -747,12 +994,14 @@ export default function ProfileShow({ profile, pets }: PageProps) {
                     </div>
                   )}
 
-                  {/* Rejected reason visible sa owner/admin */}
-                  {pet.status === 'rejected' && (isOwner || isAdmin) && pet.reject_reason && (
-                    <div className="mt-3 text-xs text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-700 rounded-xl p-3">
-                      <strong>Reason for rejection:</strong> {pet.reject_reason}
-                    </div>
-                  )}
+                  {pet.status === 'rejected' &&
+                    (isOwner || isAdmin) &&
+                    pet.reject_reason && (
+                      <div className="mt-3 text-xs text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-700 rounded-xl p-3">
+                        <strong>Reason for rejection:</strong>{' '}
+                        {pet.reject_reason}
+                      </div>
+                    )}
                 </div>
               </div>
             ))}

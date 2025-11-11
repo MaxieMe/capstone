@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/sidebar';
 import { NavItem } from '@/types';
 import { Link } from '@inertiajs/react';
-import { LayoutGrid, Shield, Settings, Users, Info, HandHeart, Newspaper, History } from 'lucide-react';
+import { LayoutGrid, Shield, Settings, Users, Info, HandHeart, Newspaper, History, QrCode } from 'lucide-react';
 import { usePage } from '@inertiajs/react';
 import AppLogo from './app-logo';
 import { dashboard } from '@/routes';
@@ -57,9 +57,14 @@ const adminNavItems: NavItem[] = [
         icon: Settings,
     },
     {
-        title: 'Manage Post',
+        title: 'Manage Posts',
         href: '/manage_posts',
         icon: Newspaper,
+    },
+    {
+        title: 'Manage Qr Code',
+        href: '/sponsors',
+        icon: QrCode,
     },
     {
         title: 'Transaction History',

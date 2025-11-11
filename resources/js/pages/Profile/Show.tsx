@@ -318,12 +318,13 @@ export default function ProfileShow({ profile, pets, sponsor }: PageProps) {
               <p className="text-gray-600 dark:text-gray-300 mt-1">@{name}</p>
 
               <div className="mt-4 flex flex-wrap justify-center sm:justify-start gap-3">
-                <span className="px-3 py-1 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 text-sm font-semibold">
-                  {pets?.length ?? 0} posts
-                </span>
+  <span className="px-3 py-1 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 text-sm font-semibold">
+    {pets?.length ?? 0} posts
+  </span>
 
-                {sponsorStatusBadge()}
-              </div>
+  {/* Sponsor status badge – OWNER ONLY */}
+  {isOwner && sponsorStatusBadge()}
+</div>
             </div>
 
             {/* Sponsor buttons */}

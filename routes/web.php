@@ -135,22 +135,19 @@ Route::middleware(['auth', 'verified', 'approved', 'role:admin,superadmin'])->gr
     Route::get('/sponsors', [SponsorController::class, 'index'])
         ->name('sponsor.index');
 
-    // Owner upload/re-upload is handled by SponsorController@store (from Profile page)
-    Route::post('/sponsor', [SponsorController::class, 'store'])
-        ->name('sponsor.store');
-
-    // Superadmin edit QR image
-    Route::put('/sponsor/{sponsor}', [SponsorController::class, 'update'])
-        ->name('sponsor.update');
-
-    // Approve / Reject (admin + superadmin)
+    // Approve QR
     Route::post('/sponsors/{sponsor}/approve', [SponsorController::class, 'approve'])
         ->name('sponsor.approve');
 
+    // Reject QR (may optional reason)
     Route::post('/sponsors/{sponsor}/reject', [SponsorController::class, 'reject'])
         ->name('sponsor.reject');
 
-    // Delete (superadmin only – check inside controller)
+    // Optional: admin manual update (kung kailangan mo)
+    Route::put('/sponsor/{sponsor}', [SponsorController::class, 'update'])
+        ->name('sponsor.update');
+
+    // Optional: delete sponsor record
     Route::delete('/sponsor/{sponsor}', [SponsorController::class, 'destroy'])
         ->name('sponsor.destroy');
 });

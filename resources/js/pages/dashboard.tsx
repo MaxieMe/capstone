@@ -38,6 +38,7 @@ type TrendCategoryPoint = { label: string; cat: number; dog: number };
 type BreedItem = { breed: string; total: number };
 
 export default function Dashboard({
+
   totals,
   byCategory,
   topBreeds,
@@ -62,6 +63,14 @@ export default function Dashboard({
   ];
   const COLORS = ['#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#6366f1', '#f43f5e'];
   const max7d = Math.max(5, ...trend7d.map(t => t.count));
+   const totalPosts = totals.adoptions || 0;
+  const adoptionRate =
+    totalPosts > 0 ? Math.round((totals.adopted / totalPosts) * 100) : 0;
+
+  const openPosts = (totals.available || 0) + (totals.pending || 0);
+  const pendingUsersCount = pendingUsers ? pendingUsers.length : 0;
+
+  const last7DaysTotal = trend7d.reduce((sum, d) => sum + d.count, 0);
 
   return (
     <AppLayout breadcrumbs={[{ title: 'Dashboard', href: route('dashboard') }]}>
@@ -86,15 +95,11 @@ export default function Dashboard({
             >
               📊 View Adoption
             </Link>
-            <Link
-              href={route('admin.users')}
-              className="px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-lg border-2 border-gray-300 dark:border-gray-600 font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-all"
-            >
-              👥 Manage Users
-            </Link>
           </div>
         </div>
       </div>
+
+
 
       {/* KPI Cards */}
       <div className="px-4 sm:px-6 lg:px-8">
@@ -107,6 +112,52 @@ export default function Dashboard({
           <KpiCard title="Users" value={totals.users} subtitle="Total users" icon="👤" />
         </div>
       </div>
+
+            {/* Quick Actions */}
+      <div className="px-4 sm:px-6 lg:px-8 mt-4">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-3 sm:p-4 lg:p-5 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+            <div>
+              <h2 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">
+                ⚡ Quick Actions
+              </h2>
+              <p className="text-[11px] sm:text-xs text-gray-500 dark:text-gray-400">
+                Jump straight into the most common admin tasks.
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+            <Link
+              href={route('manage.index')}
+              className="flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2 sm:py-3 text-[11px] sm:text-xs lg:text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-violet-50 hover:border-violet-400 dark:hover:bg-violet-900/30 transition-all"
+            >
+              🐶 Manage Posts
+            </Link>
+
+            <Link
+              href={route('admin.users')}
+              className="flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2 sm:py-3 text-[11px] sm:text-xs lg:text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-violet-50 hover:border-violet-400 dark:hover:bg-violet-900/30 transition-all"
+            >
+              👥 Manage Users
+            </Link>
+
+            <Link
+              href={route('manage.transaction.history')}
+              className="flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2 sm:py-3 text-[11px] sm:text-xs lg:text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-violet-50 hover:border-violet-400 dark:hover:bg-violet-900/30 transition-all"
+            >
+              📑 Transaction History
+            </Link>
+
+            <Link
+              href={route('sponsor.index')}
+              className="flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2 sm:py-3 text-[11px] sm:text-xs lg:text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-violet-50 hover:border-violet-400 dark:hover:bg-violet-900/30 transition-all"
+            >
+              💳 Sponsor Requests
+            </Link>
+          </div>
+        </div>
+      </div>
+
 
       {/* Charts Row 1: 12m Line + Category Pie */}
       <div className="px-4 sm:px-6 lg:px-8 mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -258,32 +309,35 @@ export default function Dashboard({
       </div>
 
       {/* Top Breeds */}
-      <div className="px-4 sm:px-6 lg:px-8 mt-6 bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-4 sm:p-6 border border-gray-100 dark:border-gray-700">
-        <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900 dark:text-white mb-4">🏆 Top Breeds</h2>
-        {topBreeds && topBreeds.length ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-            {topBreeds.map((breed, i) => (
-              <div key={i} className="p-4 rounded-xl bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-900/20 dark:to-purple-900/20 border border-violet-200 dark:border-violet-800">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <div className="font-semibold text-xs sm:text-sm text-gray-900 dark:text-white">{breed.breed}</div>
-                    <div className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mt-1">{breed.total} posts</div>
-                  </div>
-                  <div className="text-lg sm:text-2xl font-black text-violet-600">#{i + 1}</div>
-                </div>
-                <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-violet-500 to-purple-600"
-                    style={{ width: `${topBreeds.length > 0 ? (breed.total / topBreeds[0].total) * 100 : 0}%` }}
-                  />
-                </div>
+<div className="px-4 sm:px-6 lg:px-8 mt-6 bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-4 sm:p-6 border border-gray-100 dark:border-gray-700">
+  <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900 dark:text-white mb-4">🏆 Top Breeds</h2>
+  {topBreeds && topBreeds.length ? (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+      {topBreeds.map((breed, i) => (
+        <div key={i} className="p-4 rounded-xl bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-900/20 dark:to-purple-900/20 border border-violet-200 dark:border-violet-800">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <div className="font-semibold text-xs sm:text-sm text-gray-900 dark:text-white">{breed.breed}</div>
+              {/* Conditional pluralization for posts */}
+              <div className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mt-1">
+                {breed.total} {breed.total === 1 ? 'post' : 'posts'}
               </div>
-            ))}
+            </div>
+            <div className="text-lg sm:text-2xl font-black text-violet-600">#{i + 1}</div>
           </div>
-        ) : (
-          <div className="text-center text-gray-500 py-8 text-sm">No breeds data yet.</div>
-        )}
-      </div>
+          <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-violet-500 to-purple-600"
+              style={{ width: `${topBreeds.length > 0 ? (breed.total / topBreeds[0].total) * 100 : 0}%` }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  ) : (
+    <div className="text-center text-gray-500 py-8 text-sm">No breeds data yet.</div>
+  )}
+</div>
     </AppLayout>
   );
 }

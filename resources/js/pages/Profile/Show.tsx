@@ -262,6 +262,18 @@ export default function ProfileShow({ profile, pets, sponsor }: PageProps) {
     );
   };
 
+  const handleConfirmPending = (petId: number) => {
+  if (!confirm('Mark this pet as adopted?')) return;
+
+  router.post(
+    route('adoption.markAdopted', petId),
+    {},
+    {
+      preserveScroll: true,
+    }
+  );
+};
+
   const canShowEdit = (pet: Pet) => {
     if (!isOwner) return false;
     return pet.status === 'rejected';
@@ -876,7 +888,7 @@ export default function ProfileShow({ profile, pets, sponsor }: PageProps) {
       {/* Pets Grid */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-14">
         {filteredPets.length ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {filteredPets.map((pet) => (
               <div
                 key={pet.id}
@@ -962,38 +974,48 @@ export default function ProfileShow({ profile, pets, sponsor }: PageProps) {
                   </div>
 
                   {isOwner && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {pet.status === 'pending' ? (
-                        <button
-                          type="button"
-                          onClick={() => handleCancelPending(pet.id)}
-                          className="flex-1 min-w-[90px] text-center border-2 border-amber-500 text-amber-600 dark:text-amber-300 rounded-xl py-2 text-sm font-semibold hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-all"
-                        >
-                          Cancel
-                        </button>
-                      ) : (
-                        <>
-                          {canShowEdit(pet) && (
-                            <button
-                              type="button"
-                              onClick={() => openEditModal(pet)}
-                              className="flex-1 min-w-[90px] text-center border-2 border-blue-500 text-blue-600 dark:text-blue-300 rounded-xl py-2 text-sm font-semibold hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all"
-                            >
-                              Edit
-                            </button>
-                          )}
+  <div className="mt-3 flex flex-wrap gap-2">
+    {pet.status === 'pending' ? (
+      <>
+        <button
+          type="button"
+          onClick={() => handleCancelPending(pet.id)}
+          className="flex-1 min-w-[90px] text-center border-2 border-amber-500 text-amber-600 dark:text-amber-300 rounded-xl py-2 text-sm font-semibold hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-all"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={() => handleConfirmPending(pet.id)}
+          className="flex-1 min-w-[90px] text-center border-2 border-emerald-500 text-emerald-600 dark:text-emerald-300 rounded-xl py-2 text-sm font-semibold hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-all"
+        >
+          Confirm
+        </button>
+      </>
+    ) : (
+      <>
+        {canShowEdit(pet) && (
+          <button
+            type="button"
+            onClick={() => openEditModal(pet)}
+            className="flex-1 min-w-[90px] text-center border-2 border-blue-500 text-blue-600 dark:text-blue-300 rounded-xl py-2 text-sm font-semibold hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all"
+          >
+            Edit
+          </button>
+        )}
 
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(pet.id)}
-                            className="flex-1 min-w-[90px] text-center border-2 border-rose-500 text-rose-600 dark:text-rose-300 rounded-xl py-2 text-sm font-semibold hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-all"
-                          >
-                            Delete
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  )}
+        <button
+          type="button"
+          onClick={() => handleDelete(pet.id)}
+          className="flex-1 min-w-[90px] text-center border-2 border-rose-500 text-rose-600 dark:text-rose-300 rounded-xl py-2 text-sm font-semibold hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-all"
+        >
+          Delete
+        </button>
+      </>
+    )}
+  </div>
+)}
+
 
                   {pet.status === 'rejected' &&
                     (isOwner || isAdmin) &&

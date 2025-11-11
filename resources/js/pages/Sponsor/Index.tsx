@@ -73,7 +73,7 @@ export default function SponsorIndex({ sponsors, filters }: PageProps) {
     });
   };
 
-  /* =============== APPROVE / REJECT / DELETE / EDIT =============== */
+  /* =============== APPROVE / REJECT / DELETE =============== */
 
   const approveSponsor = (s: Sponsor) => {
     if (!confirm(`Approve sponsor QR of ${s.user?.name || 'this user'}?`)) {
@@ -105,7 +105,11 @@ export default function SponsorIndex({ sponsors, filters }: PageProps) {
   };
 
   const deleteSponsor = (s: Sponsor) => {
-    if (!confirm(`Delete sponsor QR of ${s.user?.name || 'this user'}? This cannot be undone.`)) {
+    if (
+      !confirm(
+        `Delete sponsor QR of ${s.user?.name || 'this user'}? This cannot be undone.`
+      )
+    ) {
       return;
     }
 
@@ -126,6 +130,7 @@ export default function SponsorIndex({ sponsors, filters }: PageProps) {
     errors: editErrors,
     reset: resetEdit,
     clearErrors: clearEditErrors,
+    transform: transformEdit,
   } = useForm({
     qr: null as File | null,
   });
@@ -146,6 +151,12 @@ export default function SponsorIndex({ sponsors, filters }: PageProps) {
   const handleEditSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingSponsor) return;
+
+    // 🔥 Gawing PUT via _method override
+    transformEdit((data) => ({
+      ...data,
+      _method: 'PUT',
+    }));
 
     postEdit(route('sponsor.update', editingSponsor.id), {
       forceFormData: true,
@@ -185,7 +196,8 @@ export default function SponsorIndex({ sponsors, filters }: PageProps) {
             </h1>
             <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">
               Review, approve, or reject sponsor QR codes uploaded by users.
-              {isSuperadmin && ' As superadmin, you can also edit or delete approved QR codes.'}
+              {isSuperadmin &&
+                ' As superadmin, you can also edit or delete existing QR codes.'}
             </p>
           </div>
         </div>
@@ -219,7 +231,7 @@ export default function SponsorIndex({ sponsors, filters }: PageProps) {
               const canApproveReject =
                 s.status === 'waiting_for_approval' && (isAdmin || isSuperadmin);
               const canEdit = isSuperadmin && s.status === 'approved';
-              const canDelete = isSuperadmin; // superadmin pwedeng mag delete kahit anong status
+              const canDelete = isSuperadmin; // superadmin pwedeng mag-delete kahit anong status
 
               return (
                 <div
@@ -300,6 +312,7 @@ export default function SponsorIndex({ sponsors, filters }: PageProps) {
                       View Profile
                     </Link>
 
+                    {/* WAITING → approve/reject lang */}
                     {canApproveReject && (
                       <>
                         <button
@@ -319,7 +332,7 @@ export default function SponsorIndex({ sponsors, filters }: PageProps) {
                       </>
                     )}
 
-                    {/* APPROVED → superadmin only edit/delete */}
+                    {/* APPROVED → superadmin lang (edit + delete) */}
                     {s.status === 'approved' && !canApproveReject && (
                       <>
                         {canEdit && (
@@ -343,7 +356,7 @@ export default function SponsorIndex({ sponsors, filters }: PageProps) {
                       </>
                     )}
 
-                    {/* REJECTED → optional delete for superadmin */}
+                    {/* REJECTED → optional delete lang for superadmin */}
                     {s.status === 'rejected' && !canApproveReject && (
                       <>
                         {canDelete && (

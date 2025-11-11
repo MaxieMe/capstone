@@ -76,9 +76,6 @@ export default function TransactionHistory({ inquiries, filters }: PageProps) {
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
               Adoption Inquiries History
             </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              View all adoption requests submitted by adopters.
-            </p>
           </div>
           <Link
             href={route('manage.index')}

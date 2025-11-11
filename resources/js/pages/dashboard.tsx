@@ -83,9 +83,6 @@ export default function Dashboard({
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black bg-gradient-to-r from-violet-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
               🎯 Admin Dashboard
             </h1>
-            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1">
-              Real-time adoption management &amp; analytics
-            </p>
           </div>
 
           <div className="flex gap-2 flex-wrap">

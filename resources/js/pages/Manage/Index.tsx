@@ -194,6 +194,39 @@ export default function ManageIndex() {
   const canDeletePost = (post: Adoption) =>
     isSuperadmin && post.status !== "waiting_for_approval";
 
+  /* ===================== Life Stage Helper ===================== */
+
+  const getLifeStage = (post: Adoption): string | null => {
+    if (post.age == null || isNaN(post.age)) return null;
+
+    const unit = (post.age_unit || "years").toLowerCase();
+    let years = post.age;
+
+    if (unit.includes("month")) {
+      years = post.age / 12;
+    }
+
+    const category = (post.category || "").toLowerCase();
+
+    // Dog / Cat specific labels
+    if (category === "dog") {
+      if (years < 1) return "Puppy";
+      if (years <= 7) return "Adult";
+      return "Senior";
+    }
+
+    if (category === "cat") {
+      if (years < 1) return "Kitten";
+      if (years <= 7) return "Adult";
+      return "Senior";
+    }
+
+    // Fallback generic
+    if (years < 1) return "Young";
+    if (years <= 7) return "Adult";
+    return "Senior";
+  };
+
   /* ===================== Status Summary (top row) ===================== */
 
   const statusSummary = useMemo(() => {
@@ -306,15 +339,14 @@ export default function ManageIndex() {
                 <ClipboardList className="w-7 h-7 sm:w-8 sm:h-8 text-primary" />
                 Manage Adoption Posts
               </h1>
-              <p className="text-sm text-muted-foreground mt-1">
-                Review adoption posts and clearly see their current status (waiting,
-                available, pending, adopted, rejected).
-              </p>
+
             </div>
-            <div className="flex flex-col items-end gap-1 text-sm">
-              <span className="text-muted-foreground">Total Posts:</span>
-              <span className="font-semibold text-xl">{statusSummary.total}</span>
-            </div>
+            <div className="flex items-center gap-2 text-sm text-right">
+  <span className="text-muted-foreground">Total Posts:</span>
+  <span className="font-semibold text-lg">
+    {statusSummary.total}
+  </span>
+</div>
           </div>
 
           {/* Status summary row */}
@@ -373,6 +405,7 @@ export default function ManageIndex() {
                 const _canApproveReject = canApproveReject(post);
                 const _canEdit = canEdit(post);
                 const _canDelete = canDeletePost(post);
+                const lifeStage = getLifeStage(post);
 
                 return (
                   <div
@@ -459,7 +492,7 @@ export default function ManageIndex() {
                         </div>
                       </div>
 
-                      {/* DETAILS BOX – para kasya yung mga extra info */}
+                      {/* DETAILS BOX – Age + Life Stage + Breed + Color + Desc */}
                       {(post.breed ||
                         post.age != null ||
                         post.color ||
@@ -477,6 +510,11 @@ export default function ManageIndex() {
                               <span className="text-muted-foreground">
                                 <span className="font-semibold">Age:</span>{" "}
                                 {post.age} {post.age_unit || "years"}
+                                {lifeStage && (
+                                  <span className="ml-1 text-[11px] text-muted-foreground">
+                                    ({lifeStage})
+                                  </span>
+                                )}
                               </span>
                             )}
 

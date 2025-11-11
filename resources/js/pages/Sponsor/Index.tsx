@@ -212,14 +212,11 @@ export default function SponsorIndex({ sponsors, filters }: PageProps) {
             <h1 className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-violet-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
               Sponsor QR Requests
             </h1>
-            <p className="text-gray-600 dark:text-gray-400 text-sm mt-1 max-w-xl">
-              Review and manage sponsor QR codes in a card layout. Approve,
-              reject, or update QR images for your sponsors.
-            </p>
+            
           </div>
           <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
             Total Requests:{" "}
-            <span className="font-semibold text-gray-900 dark:text-gray-100">
+            <span className="font-semibold text-lg text-gray-900 dark:text-gray-100">
               {sponsors.length}
             </span>
           </div>

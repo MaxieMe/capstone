@@ -132,9 +132,7 @@ export default function Users() {
               <UsersIcon className="w-7 h-7 sm:w-8 sm:h-8 text-primary" />
               User Management
             </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Manage and approve user accounts
-            </p>
+
           </div>
           <div className="flex items-center gap-2 text-sm">
             <span className="text-muted-foreground">Total Users:</span>

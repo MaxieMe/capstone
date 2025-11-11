@@ -1,20 +1,22 @@
 // resources/js/Pages/Sponsor/Index.tsx
-import React, { useMemo, useState } from 'react';
-import { Head, router, Link, usePage, useForm } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
-import { route } from 'ziggy-js';
-import type { BreadcrumbItem } from '@/types';
+import React, { useMemo, useState } from "react";
+import { Head, router, Link, usePage, useForm } from "@inertiajs/react";
+import AppLayout from "@/layouts/app-layout";
+import { route } from "ziggy-js";
+import type { BreadcrumbItem } from "@/types";
 
-type Role = 'user' | 'admin' | 'superadmin';
+type Role = "user" | "admin" | "superadmin";
 
 type SponsorUser = {
   id: number;
   name: string;
 };
 
+type SponsorStatus = "waiting_for_approval" | "approved" | "rejected";
+
 type Sponsor = {
   id: number;
-  status: 'waiting_for_approval' | 'approved' | 'rejected';
+  status: SponsorStatus;
   reject_reason?: string | null;
   qr_url?: string | null;
   created_at?: string | null;
@@ -36,8 +38,23 @@ type PageProps = {
 };
 
 const breadcrumbs: BreadcrumbItem[] = [
-  { title: 'Sponsor Requests', href: route('sponsor.index') },
+  { title: "Sponsor Requests", href: route("sponsor.index") },
 ];
+
+const statusLabel: Record<SponsorStatus, string> = {
+  waiting_for_approval: "Waiting for Approval",
+  approved: "Approved",
+  rejected: "Rejected",
+};
+
+const statusColor: Record<SponsorStatus, string> = {
+  waiting_for_approval:
+    "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+  approved:
+    "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+  rejected:
+    "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
+};
 
 export default function SponsorIndex({ sponsors, filters }: PageProps) {
   const page = usePage().props as any;
@@ -46,28 +63,28 @@ export default function SponsorIndex({ sponsors, filters }: PageProps) {
   const viewer = auth?.user ?? null;
 
   const role: Role =
-    viewer?.role && ['user', 'admin', 'superadmin'].includes(viewer.role)
+    viewer?.role && ["user", "admin", "superadmin"].includes(viewer.role)
       ? (viewer.role as Role)
-      : 'user';
+      : "user";
 
-  const isAdmin = role === 'admin';
-  const isSuperadmin = role === 'superadmin';
+  const isAdmin = role === "admin";
+  const isSuperadmin = role === "superadmin";
 
   const [activeStatus, setActiveStatus] = useState<
-    'All' | 'waiting_for_approval' | 'approved' | 'rejected'
-  >((filters?.status as any) || 'All');
+    "All" | "waiting_for_approval" | "approved" | "rejected"
+  >((filters?.status as any) || "All");
 
   const filteredSponsors = useMemo(() => {
     return (Array.isArray(sponsors) ? sponsors : []).filter((s) =>
-      activeStatus === 'All' ? true : s.status === activeStatus
+      activeStatus === "All" ? true : s.status === activeStatus
     );
   }, [sponsors, activeStatus]);
 
   const applyStatusFilter = (status: typeof activeStatus) => {
     setActiveStatus(status);
     const query: Record<string, string> = {};
-    if (status !== 'All') query.status = status;
-    router.get(route('sponsor.index'), query, {
+    if (status !== "All") query.status = status;
+    router.get(route("sponsor.index"), query, {
       preserveScroll: true,
       preserveState: true,
     });
@@ -76,12 +93,12 @@ export default function SponsorIndex({ sponsors, filters }: PageProps) {
   /* =============== APPROVE / REJECT / DELETE =============== */
 
   const approveSponsor = (s: Sponsor) => {
-    if (!confirm(`Approve sponsor QR of ${s.user?.name || 'this user'}?`)) {
+    if (!confirm(`Approve sponsor QR of ${s.user?.name || "this user"}?`)) {
       return;
     }
 
     router.post(
-      route('sponsor.approve', s.id),
+      route("sponsor.approve", s.id),
       {},
       {
         preserveScroll: true,
@@ -91,13 +108,14 @@ export default function SponsorIndex({ sponsors, filters }: PageProps) {
 
   const rejectSponsor = (s: Sponsor) => {
     const reason = prompt(
-      `Reject sponsor QR of ${s.user?.name || 'this user'}.\nOptional reason:`,
-      s.reject_reason || ''
+      `Reject sponsor QR of ${s.user?.name || "this user"}.\nOptional reason:`,
+      s.reject_reason || ""
     );
+    if (reason === null) return;
 
     router.post(
-      route('sponsor.reject', s.id),
-      { reason: reason || '' },
+      route("sponsor.reject", s.id),
+      { reason: reason || "" },
       {
         preserveScroll: true,
       }
@@ -107,13 +125,13 @@ export default function SponsorIndex({ sponsors, filters }: PageProps) {
   const deleteSponsor = (s: Sponsor) => {
     if (
       !confirm(
-        `Delete sponsor QR of ${s.user?.name || 'this user'}? This cannot be undone.`
+        `Delete sponsor QR of ${s.user?.name || "this user"}? This cannot be undone.`
       )
     ) {
       return;
     }
 
-    router.delete(route('sponsor.destroy', s.id), {
+    router.delete(route("sponsor.destroy", s.id), {
       preserveScroll: true,
     });
   };
@@ -123,7 +141,6 @@ export default function SponsorIndex({ sponsors, filters }: PageProps) {
   const [editingSponsor, setEditingSponsor] = useState<Sponsor | null>(null);
 
   const {
-    data: editForm,
     setData: setEditData,
     post: postEdit,
     processing: editProcessing,
@@ -152,13 +169,12 @@ export default function SponsorIndex({ sponsors, filters }: PageProps) {
     e.preventDefault();
     if (!editingSponsor) return;
 
-    // 🔥 Gawing PUT via _method override
     transformEdit((data) => ({
       ...data,
-      _method: 'PUT',
+      _method: "PUT",
     }));
 
-    postEdit(route('sponsor.update', editingSponsor.id), {
+    postEdit(route("sponsor.update", editingSponsor.id), {
       forceFormData: true,
       preserveScroll: true,
       onSuccess: () => {
@@ -166,6 +182,8 @@ export default function SponsorIndex({ sponsors, filters }: PageProps) {
       },
     });
   };
+
+  /* =============== RENDER =============== */
 
   return (
     <AppLayout breadcrumbs={breadcrumbs}>
@@ -189,130 +207,159 @@ export default function SponsorIndex({ sponsors, filters }: PageProps) {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
           <div>
             <h1 className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-violet-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
               Sponsor QR Requests
             </h1>
-            <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">
-              Review, approve, or reject sponsor QR codes uploaded by users.
-              {isSuperadmin &&
-                ' As superadmin, you can also edit or delete existing QR codes.'}
+            <p className="text-gray-600 dark:text-gray-400 text-sm mt-1 max-w-xl">
+              Review and manage sponsor QR codes in a card layout. Approve,
+              reject, or update QR images for your sponsors.
             </p>
+          </div>
+          <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+            Total Requests:{" "}
+            <span className="font-semibold text-gray-900 dark:text-gray-100">
+              {sponsors.length}
+            </span>
           </div>
         </div>
 
         {/* Filter buttons */}
         <div className="mb-6 flex flex-wrap gap-2">
           {[
-            { label: 'All', value: 'All' },
-            { label: 'Waiting for Approval', value: 'waiting_for_approval' },
-            { label: 'Approved', value: 'approved' },
-            { label: 'Rejected', value: 'rejected' },
-          ].map((f) => (
-            <button
-              key={f.value}
-              onClick={() => applyStatusFilter(f.value as any)}
-              className={`px-4 py-2 rounded-full text-sm font-semibold transition-all ${
-                activeStatus === f.value
-                  ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-lg scale-105'
-                  : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
+            { label: "All", value: "All" as const },
+            {
+              label: "Waiting",
+              value: "waiting_for_approval" as const,
+            },
+            { label: "Approved", value: "approved" as const },
+            { label: "Rejected", value: "rejected" as const },
+          ].map((f) => {
+            const active = activeStatus === f.value;
+            return (
+              <button
+                key={f.value}
+                type="button"
+                onClick={() => applyStatusFilter(f.value)}
+                className={`px-3 sm:px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold border transition-all ${
+                  active
+                    ? "bg-violet-600 text-white border-violet-600 shadow-sm"
+                    : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700"
+                }`}
+              >
+                {f.label}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Grid */}
+        {/* GRID CARDS */}
         {filteredSponsors.length ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
             {filteredSponsors.map((s) => {
               const canApproveReject =
-                s.status === 'waiting_for_approval' && (isAdmin || isSuperadmin);
-              const canEdit = isSuperadmin && s.status === 'approved';
-              const canDelete = isSuperadmin; // superadmin pwedeng mag-delete kahit anong status
+                s.status === "waiting_for_approval" && (isAdmin || isSuperadmin);
+              const canEdit = isSuperadmin && s.status === "approved";
+              const canDelete = isSuperadmin;
 
               return (
                 <div
                   key={s.id}
-                  className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-4 flex flex-col gap-3"
+                  className="group rounded-2xl border border-gray-200 dark:border-gray-700 bg-card/95 backdrop-blur-sm shadow-sm hover:shadow-md hover:border-violet-500/60 transition-all flex flex-col overflow-hidden"
                 >
-                  {/* Header row: user + status */}
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
+                  {/* Header strip */}
+                  <div className="px-4 pt-3 pb-2 flex items-center justify-between gap-2 bg-gradient-to-r from-violet-600/5 via-purple-600/5 to-pink-600/5">
+                    <div className="flex items-center gap-2 min-w-0">
                       <div className="w-9 h-9 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 text-white flex items-center justify-center text-sm font-bold">
-                        {s.user?.name?.charAt(0)?.toUpperCase() ?? 'U'}
+                        {s.user?.name?.charAt(0)?.toUpperCase() ?? "U"}
                       </div>
-                      <div>
-                        <p className="font-semibold text-gray-900 dark:text-white">
-                          {s.user?.name || 'Unknown user'}
+                      <div className="min-w-0">
+                        <p className="font-semibold text-sm text-gray-900 dark:text-gray-50 truncate">
+                          {s.user?.name || "Unknown user"}
                         </p>
                         {s.created_at && (
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            Requested:{' '}
-                            {new Date(s.created_at).toLocaleString('en-PH', {
-                              dateStyle: 'medium',
-                              timeStyle: 'short',
+                          <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">
+                            {new Date(s.created_at).toLocaleString("en-PH", {
+                              dateStyle: "medium",
+                              timeStyle: "short",
                             })}
                           </p>
                         )}
                       </div>
                     </div>
 
-                    <div>
-                      {s.status === 'waiting_for_approval' && (
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">
-                          ⏳ Waiting
-                        </span>
-                      )}
-                      {s.status === 'approved' && (
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold">
-                          ✅ Approved
-                        </span>
-                      )}
-                      {s.status === 'rejected' && (
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-rose-100 text-rose-700 text-xs font-semibold">
-                          ⚠️ Rejected
-                        </span>
-                      )}
-                    </div>
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-semibold ${statusColor[s.status]}`}
+                    >
+                      {statusLabel[s.status]}
+                    </span>
                   </div>
 
-                  {/* QR preview */}
-                  <div className="flex justify-center">
-                    {s.qr_url ? (
-                      <img
-                        src={s.qr_url}
-                        alt="Sponsor QR"
-                        className="w-40 h-40 object-contain rounded-xl border border-gray-200 dark:border-gray-700 bg-white"
-                      />
-                    ) : (
-                      <div className="w-40 h-40 flex items-center justify-center rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 text-xs text-gray-400">
-                        No QR image
+                  {/* QR Content box */}
+                  <div className="px-4 pt-3 pb-4 flex-1 flex flex-col gap-3">
+                    <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/40 px-3 py-3 flex flex-col items-center gap-2">
+                      {s.qr_url ? (
+                        <>
+                          <div className="w-40 h-40 sm:w-44 sm:h-44 rounded-lg overflow-hidden bg-white border border-gray-200 dark:border-gray-700 flex items-center justify-center">
+                            <img
+                              src={s.qr_url}
+                              alt="Sponsor QR"
+                              className="w-full h-full object-contain"
+                            />
+                          </div>
+                          <p className="text-[11px] text-gray-500 dark:text-gray-400 text-center max-w-xs">
+                            This QR will be displayed publicly on the sponsor
+                            section once approved. Make sure it scans properly.
+                          </p>
+                        </>
+                      ) : (
+                        <div className="w-full py-8 flex flex-col items-center justify-center text-xs text-gray-500 dark:text-gray-400">
+                          <div className="w-16 h-16 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center mb-2">
+                            <span className="text-2xl">💳</span>
+                          </div>
+                          <p className="text-center max-w-xs">
+                            No QR image uploaded yet. Ask the user to upload one
+                            on their sponsor page.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Meta chips / ID */}
+                    <div className="flex flex-wrap gap-2 text-[11px] text-gray-600 dark:text-gray-400">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                        <span className="font-semibold mr-1">ID:</span> #{s.id}
+                      </span>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                        Status: {statusLabel[s.status]}
+                      </span>
+                    </div>
+
+                    {/* Reject reason box */}
+                    {s.reject_reason && (
+                      <div className="mt-1 rounded-lg border border-rose-200 dark:border-rose-800 bg-rose-50/80 dark:bg-rose-950/30 px-3 py-2 text-[11px] text-rose-700 dark:text-rose-200">
+                        <p className="font-semibold mb-0.5">Rejection reason</p>
+                        <p className="leading-snug max-h-24 overflow-y-auto">
+                          {s.reject_reason}
+                        </p>
                       </div>
                     )}
                   </div>
 
-                  {/* Reject reason */}
-                  {s.status === 'rejected' && s.reject_reason && (
-                    <div className="text-xs text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-700 rounded-xl p-2">
-                      <strong>Reason:</strong> {s.reject_reason}
-                    </div>
-                  )}
-
-                  {/* Actions */}
-                  <div className="flex flex-wrap gap-2 mt-auto">
+                  {/* Footer Actions */}
+                  <div className="px-4 pt-2 pb-3 border-t border-gray-200 dark:border-gray-700 bg-card/95 flex flex-wrap gap-2 mt-auto">
                     <Link
                       href={
-                        s.user ? route('profile.show', { name: s.user.name }) : '#'
+                        s.user
+                          ? route("profile.show", { name: s.user.name })
+                          : "#"
                       }
-                      className="flex-1 text-center border-2 border-gray-300 dark:border-gray-600 rounded-xl py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                      className="flex-1 text-center border-2 border-gray-300 dark:border-gray-600 rounded-xl py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                     >
                       View Profile
                     </Link>
 
-                    {/* WAITING → approve/reject lang */}
                     {canApproveReject && (
                       <>
                         <button
@@ -332,8 +379,7 @@ export default function SponsorIndex({ sponsors, filters }: PageProps) {
                       </>
                     )}
 
-                    {/* APPROVED → superadmin lang (edit + delete) */}
-                    {s.status === 'approved' && !canApproveReject && (
+                    {!canApproveReject && s.status === "approved" && (
                       <>
                         {canEdit && (
                           <button
@@ -356,24 +402,20 @@ export default function SponsorIndex({ sponsors, filters }: PageProps) {
                       </>
                     )}
 
-                    {/* REJECTED → optional delete lang for superadmin */}
-                    {s.status === 'rejected' && !canApproveReject && (
-                      <>
-                        {canDelete && (
-                          <button
-                            type="button"
-                            onClick={() => deleteSponsor(s)}
-                            className="flex-1 text-center border-2 border-rose-500 text-rose-600 dark:text-rose-300 rounded-xl py-2 text-xs font-semibold hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-colors"
-                          >
-                            Delete
-                          </button>
-                        )}
-                      </>
+                    {!canApproveReject && s.status === "rejected" && canDelete && (
+                      <button
+                        type="button"
+                        onClick={() => deleteSponsor(s)}
+                        className="flex-1 text-center border-2 border-rose-500 text-rose-600 dark:text-rose-300 rounded-xl py-2 text-xs font-semibold hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-colors"
+                      >
+                        Delete
+                      </button>
                     )}
 
                     {!canApproveReject &&
-                      s.status !== 'approved' &&
-                      s.status !== 'rejected' && (
+                      s.status !== "approved" &&
+                      s.status !== "rejected" &&
+                      !canDelete && (
                         <span className="w-full text-center text-[11px] text-gray-400 dark:text-gray-500 italic mt-1">
                           No actions available
                         </span>
@@ -384,21 +426,13 @@ export default function SponsorIndex({ sponsors, filters }: PageProps) {
             })}
           </div>
         ) : (
-          <div className="text-center py-16">
-            <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-violet-100 to-purple-200 dark:from-gray-700 dark:to-gray-600 rounded-full mb-6">
-              <span className="text-5xl">💳</span>
-            </div>
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-              No sponsor requests
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400">
-              Users haven&apos;t submitted any sponsor QR codes yet.
-            </p>
+          <div className="border border-dashed border-gray-300 dark:border-gray-700 rounded-2xl p-8 text-center text-sm text-gray-500 dark:text-gray-400">
+            No sponsor requests found for this filter.
           </div>
         )}
       </div>
 
-      {/* Edit QR Modal – superadmin only */}
+      {/* EDIT QR MODAL */}
       {editingSponsor && isSuperadmin && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
           <div className="w-full max-w-md rounded-2xl bg-white dark:bg-gray-900 shadow-2xl max-h-[90vh] overflow-y-auto">
@@ -408,9 +442,9 @@ export default function SponsorIndex({ sponsors, filters }: PageProps) {
                   Edit Sponsor QR
                 </h2>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Updating QR for{' '}
+                  Updating QR for{" "}
                   <span className="font-semibold">
-                    {editingSponsor.user?.name || 'Unknown user'}
+                    {editingSponsor.user?.name || "Unknown user"}
                   </span>
                   .
                 </p>
@@ -453,7 +487,7 @@ export default function SponsorIndex({ sponsors, filters }: PageProps) {
                   accept="image/*"
                   onChange={(e) => {
                     if (e.target.files && e.target.files.length > 0) {
-                      setEditData('qr', e.target.files[0]);
+                      setEditData("qr", e.target.files[0]);
                     }
                   }}
                   className="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-6 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100 dark:file:bg-violet-900/30 dark:file:text-violet-300 file:cursor-pointer"
@@ -477,7 +511,7 @@ export default function SponsorIndex({ sponsors, filters }: PageProps) {
                   disabled={editProcessing}
                   className="flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 text-white font-semibold text-sm hover:from-violet-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg"
                 >
-                  {editProcessing ? 'Saving...' : 'Save QR'}
+                  {editProcessing ? "Saving..." : "Save QR"}
                 </button>
               </div>
             </form>

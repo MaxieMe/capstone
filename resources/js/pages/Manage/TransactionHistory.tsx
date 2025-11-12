@@ -1,9 +1,9 @@
-
-import React from 'react';
-import { Head, Link, usePage, router } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
-import { route } from 'ziggy-js';
-import { Button } from '@/components/ui/button';
+// resources/js/Pages/Manage/TransactionHistory.tsx
+import React from "react";
+import { Head, Link, usePage, router } from "@inertiajs/react";
+import AppLayout from "@/layouts/app-layout";
+import { route } from "ziggy-js";
+import { Button } from "@/components/ui/button";
 
 type User = {
   id: number;
@@ -51,7 +51,7 @@ export default function TransactionHistory({ inquiries, filters }: PageProps) {
   const user = props?.auth?.user;
 
   const formatDateTime = (value?: string | null) => {
-    if (!value) return '—';
+    if (!value) return "—";
     const d = new Date(value);
     if (Number.isNaN(d.getTime())) return value;
     return d.toLocaleString();
@@ -64,8 +64,8 @@ export default function TransactionHistory({ inquiries, filters }: PageProps) {
   return (
     <AppLayout
       breadcrumbs={[
-        { title: 'Dashboard', href: route('dashboard') },
-        { title: 'Transaction History', href: route('manage.transaction.history') },
+        { title: "Dashboard", href: route("dashboard") },
+        { title: "Transaction History", href: route("manage.transaction.history") },
       ]}
     >
       <Head title="Adoption Inquiries History" />
@@ -78,7 +78,7 @@ export default function TransactionHistory({ inquiries, filters }: PageProps) {
             </h1>
           </div>
           <Link
-            href={route('manage.index')}
+            href={route("manage.index")}
             className="inline-flex items-center gap-2 text-sm px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
           >
             ← Back to Manage
@@ -95,7 +95,7 @@ export default function TransactionHistory({ inquiries, filters }: PageProps) {
               <input
                 type="text"
                 name="q"
-                defaultValue={filters?.q ?? ''}
+                defaultValue={filters?.q ?? ""}
                 placeholder="Search by requester or pet name..."
                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm"
               />
@@ -103,7 +103,7 @@ export default function TransactionHistory({ inquiries, filters }: PageProps) {
             <div>
               <select
                 name="status"
-                defaultValue={filters?.status ?? ''}
+                defaultValue={filters?.status ?? ""}
                 className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm"
               >
                 <option value="">All Status</option>
@@ -149,13 +149,16 @@ export default function TransactionHistory({ inquiries, filters }: PageProps) {
                 )}
 
                 {inquiries.data.map((inq) => (
-                  <tr key={inq.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/40">
+                  <tr
+                    key={inq.id}
+                    className="hover:bg-gray-50 dark:hover:bg-gray-700/40"
+                  >
                     {/* Pet */}
                     <td className="px-4 py-3 align-top">
                       {inq.adoption ? (
                         <div>
                           <Link
-                            href={route('adoption.show', inq.adoption.id)}
+                            href={route("adoption.show", inq.adoption.id)}
                             className="font-semibold text-violet-600 dark:text-violet-400 hover:underline"
                           >
                             {inq.adoption.pname}
@@ -163,7 +166,7 @@ export default function TransactionHistory({ inquiries, filters }: PageProps) {
                           <div className="text-xs text-gray-500 dark:text-gray-400">
                             {inq.adoption.category
                               ? inq.adoption.category.toUpperCase()
-                              : '—'}{' '}
+                              : "—"}{" "}
                             • {inq.adoption.status}
                           </div>
                         </div>
@@ -213,17 +216,18 @@ export default function TransactionHistory({ inquiries, filters }: PageProps) {
                     <td className="px-4 py-3 align-top">
                       <div className="text-xs text-gray-700 dark:text-gray-200">
                         <div>
-                          <span className="font-semibold">Visit:</span>{' '}
+                          <span className="font-semibold">Visit:</span>{" "}
                           {formatDateTime(inq.visit_at)}
                         </div>
                         <div className="mt-1">
-                          <span className="font-semibold">Location:</span>{' '}
-                          {inq.meetup_location || '—'}
+                          <span className="font-semibold">Location:</span>{" "}
+                          {inq.meetup_location || "—"}
                         </div>
                       </div>
                       {inq.message && (
                         <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 line-clamp-3">
-                          <span className="font-semibold">Message:</span> {inq.message}
+                          <span className="font-semibold">Message:</span>{" "}
+                          {inq.message}
                         </div>
                       )}
                     </td>
@@ -232,14 +236,14 @@ export default function TransactionHistory({ inquiries, filters }: PageProps) {
                     <td className="px-4 py-3 align-top">
                       <span
                         className={
-                          'inline-flex px-2 py-1 rounded-full text-xs font-semibold ' +
-                          (inq.status === 'submitted'
-                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
-                            : inq.status === 'sent'
-                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-                            : inq.status === 'read'
-                            ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-                            : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200')
+                          "inline-flex px-2 py-1 rounded-full text-xs font-semibold " +
+                          (inq.status === "submitted"
+                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+                            : inq.status === "sent"
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                            : inq.status === "read"
+                            ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                            : "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200")
                         }
                       >
                         {formatStatus(inq.status)}
@@ -260,16 +264,16 @@ export default function TransactionHistory({ inquiries, filters }: PageProps) {
           {inquiries.links?.length > 0 && (
             <div className="border-t border-gray-200 dark:border-gray-700 px-4 py-3 flex justify-center gap-1">
               {inquiries.links.map((link, i) => (
-               <Button
-               key={i}
-               size="sm"
-               variant={link.active ? "default" : "outline"}
-               disabled={!link.url}
-               onClick={() => link.url && router.visit(link.url)}
-               className="min-w-[2.5rem]"
-             >
-               <span dangerouslySetInnerHTML={{ __html: link.label }} />
-             </Button>
+                <Button
+                  key={i}
+                  size="sm"
+                  variant={link.active ? "default" : "outline"}
+                  disabled={!link.url}
+                  onClick={() => link.url && router.visit(link.url)}
+                  className="min-w-[2.5rem]"
+                >
+                  <span dangerouslySetInnerHTML={{ __html: link.label }} />
+                </Button>
               ))}
             </div>
           )}

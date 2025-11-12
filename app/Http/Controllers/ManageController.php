@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Adoption;
 use App\Models\AdoptionInquiry;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 class ManageController extends Controller
@@ -14,60 +15,57 @@ class ManageController extends Controller
      * ✅ Lahat ng status (kasama rejected) lalabas dito,
      *    maliban na lang kung ifi-filter mo via ?status=...
      */
-   public function index(Request $request)
-{
-    $query = Adoption::query()
-        ->with('user');
+    public function index(Request $request)
+    {
+        $query = Adoption::query()
+            ->with('user');
 
-    // 🔹 filter by category (dog/cat)
-    if ($request->filled('category') && in_array($request->category, ['dog', 'cat'], true)) {
-        $query->where('category', $request->string('category'));
+        // 🔹 filter by category (dog/cat)
+        if ($request->filled('category') && in_array($request->category, ['dog', 'cat'], true)) {
+            $query->where('category', $request->string('category'));
+        }
+
+        // existing status filter
+        if ($request->filled('status')) {
+            $query->where('status', $request->string('status'));
+        }
+
+        // existing search...
+        if ($request->filled('q')) {
+            $q = $request->string('q');
+            $query->where(function ($sub) use ($q) {
+                $sub->where('pname', 'like', "%{$q}%")
+                    ->orWhere('breed', 'like', "%{$q}%")
+                    ->orWhere('location', 'like', "%{$q}%");
+            });
+        }
+
+        // yung custom order mo gamit CASE dito pa rin
+        $query
+            ->orderByRaw("
+                CASE status
+                    WHEN 'waiting_for_approval' THEN 1
+                    WHEN 'available'           THEN 2
+                    WHEN 'pending'             THEN 3
+                    WHEN 'adopted'             THEN 4
+                    WHEN 'rejected'            THEN 5
+                    ELSE 99
+                END
+            ")
+            ->orderByRaw("LOWER(pname) ASC")
+            ->orderByDesc('created_at');
+
+        $adoptions = $query->paginate(9)->withQueryString();
+
+        return Inertia::render('Manage/Index', [
+            'adoptions' => $adoptions,
+            'filters'   => [
+                'q'        => $request->input('q'),
+                'status'   => $request->input('status'),
+                'category' => $request->input('category'),
+            ],
+        ]);
     }
-
-    // existing status filter
-    if ($request->filled('status')) {
-        $query->where('status', $request->string('status'));
-    }
-
-    // existing search...
-    if ($request->filled('q')) {
-        $q = $request->string('q');
-        $query->where(function ($sub) use ($q) {
-            $sub->where('pname', 'like', "%{$q}%")
-                ->orWhere('breed', 'like', "%{$q}%")
-                ->orWhere('location', 'like', "%{$q}%");
-        });
-    }
-
-    // yung custom order mo gamit CASE dito pa rin
-    $query
-        ->orderByRaw("
-            CASE status
-                WHEN 'waiting_for_approval' THEN 1
-                WHEN 'available'           THEN 2
-                WHEN 'pending'             THEN 3
-                WHEN 'adopted'             THEN 4
-                WHEN 'rejected'            THEN 5
-                ELSE 99
-            END
-        ")
-        ->orderByRaw("LOWER(pname) ASC")
-        ->orderByDesc('created_at');
-
-    $adoptions = $query->paginate(9)->withQueryString();
-
-    return Inertia::render('Manage/Index', [
-        'adoptions' => $adoptions,
-        'filters'   => [
-            'q'        => $request->input('q'),
-            'status'   => $request->input('status'),
-            'category' => $request->input('category'),
-        ],
-    ]);
-}
-
-
-
 
     /**
      * Approve a post (make it visible on adoption list).
@@ -103,6 +101,7 @@ class ManageController extends Controller
     /**
      * Update adoption post (admin/superadmin edit).
      * NOTE: status hindi binabago dito.
+     * ✅ Kasama na dito ang optional image upload.
      */
     public function update(Request $request, Adoption $adoption)
     {
@@ -116,7 +115,23 @@ class ManageController extends Controller
             'color'       => ['nullable', 'string', 'max:255'],
             'location'    => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
+            'image'       => ['nullable', 'image', 'max:2048'], // 🔥 new
         ]);
+
+        // 🔥 Handle optional new image
+        if ($request->hasFile('image')) {
+            // delete old image kung meron
+            if ($adoption->image_path && Storage::disk('public')->exists($adoption->image_path)) {
+                Storage::disk('public')->delete($adoption->image_path);
+            }
+
+            $path = $request->file('image')->store('adoptions', 'public');
+
+            // columns: image_path + image_url
+            $data['image_path'] = $path;
+            $data['image_url']  = Storage::disk('public')->url($path);
+            // or: $data['image_url'] = Storage::url($path);
+        }
 
         $adoption->update($data);
 
@@ -125,9 +140,15 @@ class ManageController extends Controller
 
     /**
      * Delete adoption post.
+     * ✅ Optionally delete image file din.
      */
     public function destroy(Adoption $adoption)
     {
+        // 🔥 delete image file kung may naka-store
+        if ($adoption->image_path && Storage::disk('public')->exists($adoption->image_path)) {
+            Storage::disk('public')->delete($adoption->image_path);
+        }
+
         $adoption->delete();
 
         return back()->with('success', 'Adoption post deleted.');

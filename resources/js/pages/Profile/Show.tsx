@@ -7,6 +7,7 @@ import { type BreadcrumbItem } from '@/types';
 import { CAT_BREEDS, DOG_BREEDS } from '@/components1/breed';
 import { DisableScroll } from '@/components1/disable-scroll';
 import { XButton } from '@/components1/x-button';
+import { useConfirmDialog } from '@/components1/confirm-dialog'; // 🔥 added
 
 type Role = 'user' | 'admin' | 'superadmin';
 
@@ -240,21 +241,54 @@ export default function ProfileShow({ profile, pets, sponsor }: PageProps) {
   const hasPublicQr =
     !!sponsor && sponsor.status === 'approved' && !!sponsor.qr_url;
 
-  /* =================== ACTIONS =================== */
+  /* =================== ACTIONS (with confirm + delete modal) =================== */
 
-  const handleDelete = (petId: number) => {
-    if (!confirm('Are you sure you want to delete this post?')) return;
+  const { confirm } = useConfirmDialog(); // 🔥 for Cancel / Confirm
 
-    router.delete(route('adoption.destroy', petId), {
+  // 🔥 Delete modal state
+  const [deleteTarget, setDeleteTarget] = useState<Pet | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteProcessing, setDeleteProcessing] = useState(false);
+
+  const openDeleteDialog = (pet: Pet) => {
+    setDeleteTarget(pet);
+    setDeleteConfirmText('');
+  };
+
+  const closeDeleteDialog = () => {
+    setDeleteTarget(null);
+    setDeleteConfirmText('');
+    setDeleteProcessing(false);
+  };
+
+  const submitDelete = () => {
+    if (!deleteTarget) return;
+
+    setDeleteProcessing(true);
+
+    router.delete(route('adoption.destroy', deleteTarget.id), {
       preserveScroll: true,
+      onFinish: () => setDeleteProcessing(false),
+      onSuccess: () => {
+        closeDeleteDialog();
+      },
     });
   };
 
-  const handleCancelPending = (petId: number) => {
-    if (!confirm('Cancel this pending adoption?')) return;
+  // 🔥 Cancel Pending with confirm dialog
+  const handleCancelPending = async (pet: Pet) => {
+    const ok = await confirm({
+      title: 'Cancel Adoption Request',
+      message: `Cancel this pending adoption request for ${pet.pname}?`,
+      confirmText: 'Yes, cancel',
+      cancelText: 'No',
+      variant: 'warning',
+    });
+
+    if (!ok) return;
 
     router.post(
-      route('adoption.cancel', petId),
+      route('adoption.cancel', pet.id),
       {},
       {
         preserveScroll: true,
@@ -262,17 +296,26 @@ export default function ProfileShow({ profile, pets, sponsor }: PageProps) {
     );
   };
 
-  const handleConfirmPending = (petId: number) => {
-  if (!confirm('Mark this pet as adopted?')) return;
+  // 🔥 Confirm / Mark Adopted with confirm dialog
+  const handleConfirmPending = async (pet: Pet) => {
+    const ok = await confirm({
+      title: 'Mark as Adopted',
+      message: `Mark ${pet.pname} as adopted?`,
+      confirmText: 'Yes, mark adopted',
+      cancelText: 'No',
+      variant: 'success',
+    });
 
-  router.post(
-    route('adoption.markAdopted', petId),
-    {},
-    {
-      preserveScroll: true,
-    }
-  );
-};
+    if (!ok) return;
+
+    router.post(
+      route('adoption.markAdopted', pet.id),
+      {},
+      {
+        preserveScroll: true,
+      }
+    );
+  };
 
   const canShowEdit = (pet: Pet) => {
     if (!isOwner) return false;
@@ -330,13 +373,13 @@ export default function ProfileShow({ profile, pets, sponsor }: PageProps) {
               <p className="text-gray-600 dark:text-gray-300 mt-1">@{name}</p>
 
               <div className="mt-4 flex flex-wrap justify-center sm:justify-start gap-3">
-  <span className="px-3 py-1 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 text-sm font-semibold">
-    {pets?.length ?? 0} posts
-  </span>
+                <span className="px-3 py-1 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 text-sm font-semibold">
+                  {pets?.length ?? 0} posts
+                </span>
 
-  {/* Sponsor status badge – OWNER ONLY */}
-  {isOwner && sponsorStatusBadge()}
-</div>
+                {/* Sponsor status badge – OWNER ONLY */}
+                {isOwner && sponsorStatusBadge()}
+              </div>
             </div>
 
             {/* Sponsor buttons */}
@@ -974,48 +1017,47 @@ export default function ProfileShow({ profile, pets, sponsor }: PageProps) {
                   </div>
 
                   {isOwner && (
-  <div className="mt-3 flex flex-wrap gap-2">
-    {pet.status === 'pending' ? (
-      <>
-        <button
-          type="button"
-          onClick={() => handleCancelPending(pet.id)}
-          className="flex-1 min-w-[90px] text-center border-2 border-amber-500 text-amber-600 dark:text-amber-300 rounded-xl py-2 text-sm font-semibold hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-all"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onClick={() => handleConfirmPending(pet.id)}
-          className="flex-1 min-w-[90px] text-center border-2 border-emerald-500 text-emerald-600 dark:text-emerald-300 rounded-xl py-2 text-sm font-semibold hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-all"
-        >
-          Confirm
-        </button>
-      </>
-    ) : (
-      <>
-        {canShowEdit(pet) && (
-          <button
-            type="button"
-            onClick={() => openEditModal(pet)}
-            className="flex-1 min-w-[90px] text-center border-2 border-blue-500 text-blue-600 dark:text-blue-300 rounded-xl py-2 text-sm font-semibold hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all"
-          >
-            Edit
-          </button>
-        )}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {pet.status === 'pending' ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleCancelPending(pet)}
+                            className="flex-1 min-w-[90px] text-center border-2 border-amber-500 text-amber-600 dark:text-amber-300 rounded-xl py-2 text-sm font-semibold hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-all"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleConfirmPending(pet)}
+                            className="flex-1 min-w-[90px] text-center border-2 border-emerald-500 text-emerald-600 dark:text-emerald-300 rounded-xl py-2 text-sm font-semibold hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-all"
+                          >
+                            Confirm
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          {canShowEdit(pet) && (
+                            <button
+                              type="button"
+                              onClick={() => openEditModal(pet)}
+                              className="flex-1 min-w-[90px] text-center border-2 border-blue-500 text-blue-600 dark:text-blue-300 rounded-xl py-2 text-sm font-semibold hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all"
+                            >
+                              Edit
+                            </button>
+                          )}
 
-        <button
-          type="button"
-          onClick={() => handleDelete(pet.id)}
-          className="flex-1 min-w-[90px] text-center border-2 border-rose-500 text-rose-600 dark:text-rose-300 rounded-xl py-2 text-sm font-semibold hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-all"
-        >
-          Delete
-        </button>
-      </>
-    )}
-  </div>
-)}
-
+                          <button
+                            type="button"
+                            onClick={() => openDeleteDialog(pet)}
+                            className="flex-1 min-w-[90px] text-center border-2 border-rose-500 text-rose-600 dark:text-rose-300 rounded-xl py-2 text-sm font-semibold hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-all"
+                          >
+                            Delete
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
 
                   {pet.status === 'rejected' &&
                     (isOwner || isAdmin) &&
@@ -1064,6 +1106,63 @@ export default function ProfileShow({ profile, pets, sponsor }: PageProps) {
           </div>
         )}
       </div>
+
+      {/* 🔥 Delete Pet Dialog (type DELETE) */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-gray-900 shadow-2xl max-h-[90vh] overflow-hidden">
+            <div className="px-5 pt-4 pb-3 border-b border-gray-200 dark:border-gray-800">
+              <h2 className="text-base font-semibold text-gray-900 dark:text-gray-50">
+                Delete Adoption Post
+              </h2>
+            </div>
+
+            <div className="px-5 py-4 space-y-3">
+              <p className="text-sm text-gray-700 dark:text-gray-200">
+                This will permanently delete the adoption post of{' '}
+                <span className="font-semibold">
+                  {deleteTarget.pname || 'this pet'}
+                </span>
+                . This action cannot be undone.
+              </p>
+
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                To confirm, please type{' '}
+                <span className="font-mono font-semibold">DELETE</span> in all
+                caps.
+              </p>
+
+              <input
+                type="text"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder="Type DELETE to confirm"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+              />
+
+              <div className="px-0 pb-4 pt-2 flex justify-end gap-2 border-t border-gray-200 dark:border-gray-800">
+                <button
+                  type="button"
+                  onClick={closeDeleteDialog}
+                  className="px-4 py-2 rounded-xl border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={submitDelete}
+                  disabled={
+                    deleteProcessing || deleteConfirmText.trim() !== 'DELETE'
+                  }
+                  className="px-4 py-2 rounded-xl text-sm font-semibold text-white shadow-sm bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {deleteProcessing ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }

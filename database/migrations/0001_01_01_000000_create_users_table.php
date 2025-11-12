@@ -18,7 +18,7 @@ return new class extends Migration
             $table->timestamp('email_verified_at')->nullable();
             $table->enum('role', ['user', 'admin', 'superadmin'])->default('user');
             $table->string('password');
-            $table->string('barangay_permit');
+            $table->string('barangay_permit')->nullable();
             $table->boolean('is_approved')->default(false);
             $table->rememberToken();
             $table->timestamps();

@@ -1,6 +1,7 @@
+// resources/js/Pages/Manage/Users.tsx
 import React, { useMemo, useState } from "react";
 import AppLayout from "@/layouts/app-layout";
-import { Head, usePage, router } from "@inertiajs/react";
+import { Head, usePage, router, useForm } from "@inertiajs/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +10,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { type BreadcrumbItem } from "@/types";
 import {
@@ -24,6 +26,8 @@ import {
   Trash2,
   XCircle,
 } from "lucide-react";
+import { route } from "ziggy-js";
+import { useConfirmDialog } from "@/components1/confirm-dialog";
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: "Manage Users", href: "/Users" }];
 
@@ -37,8 +41,8 @@ interface User {
   email: string;
   role: Role;
   barangay_permit: string | null;
-  is_approved: boolean | number; // 0/1 or true/false
-  is_rejected?: boolean | number | null; // optional, depende sa backend
+  is_approved: boolean | number;
+  is_rejected?: boolean | number | null;
 }
 
 interface Paginated<T> {
@@ -51,12 +55,35 @@ export default function Users() {
     .props;
 
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [form, setForm] = useState({ name: "", email: "", role: "user" as Role });
+
+  const { data, setData, processing, errors, reset } = useForm<{
+    name: string;
+    email: string;
+    role: Role;
+    barangay_permit: File | null;
+  }>({
+    name: "",
+    email: "",
+    role: "user",
+    barangay_permit: null,
+  });
+
+  const { confirm } = useConfirmDialog();
+
+  // For reject dialog
+  const [rejectUserTarget, setRejectUserTarget] = useState<User | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectProcessing, setRejectProcessing] = useState(false);
+
+  // For delete dialog
+  const [deleteUserTarget, setDeleteUserTarget] = useState<User | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteProcessing, setDeleteProcessing] = useState(false);
 
   /* ===================== Permissions ===================== */
   const canEditAnything = auth.user.role === "superadmin";
 
-  /* ===================== Status Helper ===================== */
+  /* ===================== Status Helpers ===================== */
 
   const getUserStatus = (user: User): UserStatus => {
     const approved = !!user.is_approved;
@@ -87,58 +114,126 @@ export default function Users() {
       const sa = statusOrder[getUserStatus(a)];
       const sb = statusOrder[getUserStatus(b)];
 
-      if (sa !== sb) return sa - sb; // priority: pending → approved → rejected
-
-      return a.name.localeCompare(b.name); // A–Z by name
+      if (sa !== sb) return sa - sb;
+      return a.name.localeCompare(b.name);
     });
 
     return sorted;
   }, [users.data, statusFilter]);
 
-  /* ===================== Approve / Reject ===================== */
-  const handleApprove = (id: number) => {
-    router.post(`/users/${id}/approve`, {}, { preserveScroll: true });
+  /* ===================== Approve / Reject / Delete ===================== */
+
+  const handleApprove = async (user: User) => {
+    const ok = await confirm({
+      title: "Approve User",
+      message: `Approve "${user.name}" as ${user.role}?`,
+      confirmText: "Approve",
+      cancelText: "Cancel",
+      variant: "success",
+    });
+
+    if (!ok) return;
+
+    router.post(route("admin.users.approve", user.id), {}, { preserveScroll: true });
   };
 
-  const handleReject = (id: number) => {
-    if (!window.confirm("Are you sure you want to reject this user?")) return;
-    router.post(`/users/${id}/reject`, {}, { preserveScroll: true });
+  const openRejectDialog = (user: User) => {
+    setRejectUserTarget(user);
+    setRejectReason("");
   };
 
-  /* ===================== Delete User ===================== */
-  const handleDelete = (id: number) => {
-    if (!window.confirm("Are you sure you want to permanently delete this user?"))
-      return;
+  const closeRejectDialog = () => {
+    setRejectUserTarget(null);
+    setRejectReason("");
+    setRejectProcessing(false);
+  };
 
-    router.delete(`/users/${id}`, {
+  const submitReject = () => {
+    if (!rejectUserTarget) return;
+    setRejectProcessing(true);
+
+    router.post(
+      route("admin.users.reject", rejectUserTarget.id),
+      { reject_reason: rejectReason },
+      {
+        preserveScroll: true,
+        onFinish: () => setRejectProcessing(false),
+        onSuccess: () => {
+          closeRejectDialog();
+        },
+      }
+    );
+  };
+
+  const openDeleteDialog = (user: User) => {
+    setDeleteUserTarget(user);
+    setDeleteConfirmText("");
+  };
+
+  const closeDeleteDialog = () => {
+    setDeleteUserTarget(null);
+    setDeleteConfirmText("");
+    setDeleteProcessing(false);
+  };
+
+  const submitDelete = () => {
+    if (!deleteUserTarget) return;
+    setDeleteProcessing(true);
+
+    router.delete(route("admin.users.destroy", deleteUserTarget.id), {
       preserveScroll: true,
+      onFinish: () => setDeleteProcessing(false),
       onSuccess: () => {
+        closeDeleteDialog();
         router.reload({ only: ["users"] });
       },
     });
   };
 
   /* ===================== Edit Modal ===================== */
+
   const openEdit = (user: User) => {
     setEditingUser(user);
-    setForm({ name: user.name, email: user.email, role: user.role });
+    reset();
+    setData("name", user.name);
+    setData("email", user.email);
+    setData("role", user.role);
+    setData("barangay_permit", null);
+  };
+
+  const closeEdit = () => {
+    setEditingUser(null);
+    reset();
   };
 
   const handleSave = () => {
     if (!editingUser) return;
-    router.put(`/users/${editingUser.id}`, form, {
-      preserveScroll: true,
-      onSuccess: () => {
-        setEditingUser(null);
-        router.reload({ only: ["users"] });
+
+    router.post(
+      route("admin.users.update", editingUser.id),
+      {
+        _method: "PUT",
+        name: data.name,
+        email: data.email,
+        role: data.role,
+        barangay_permit: data.barangay_permit,
       },
-      onError: (errors) => {
-        console.error("Update failed:", errors);
-      },
-    });
+      {
+        forceFormData: true,
+        preserveScroll: true,
+        onSuccess: () => {
+          closeEdit();
+          router.reload({ only: ["users"] });
+        },
+        onError: (errs) => {
+          console.error("Update failed:", errs);
+        },
+      }
+    );
   };
 
   /* ===================== Badges ===================== */
+
   const RoleBadge = ({ role }: { role: User["role"] }) => {
     const styles =
       role === "superadmin"
@@ -146,6 +241,7 @@ export default function Users() {
         : role === "admin"
         ? "bg-blue-500/10 text-blue-400 ring-1 ring-inset ring-blue-400/20"
         : "bg-slate-500/10 text-slate-400 ring-1 ring-inset ring-slate-400/20";
+
     return (
       <span
         className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${styles}`}
@@ -175,7 +271,6 @@ export default function Users() {
       );
     }
 
-    // pending
     return (
       <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-amber-500/10 text-amber-400 ring-1 ring-inset ring-amber-400/20">
         <Clock className="w-3 h-3 mr-1" />
@@ -198,7 +293,6 @@ export default function Users() {
               <UsersIcon className="w-7 h-7 sm:w-8 sm:h-8 text-primary" />
               User Management
             </h1>
-
           </div>
           <div className="flex items-center gap-2 text-sm">
             <span className="text-muted-foreground">Total Users:</span>
@@ -234,7 +328,7 @@ export default function Users() {
           </div>
         )}
 
-        {/* Empty State */}
+        {/* Empty State OR Table */}
         {users.data.length === 0 ? (
           <div className="rounded-xl border border-border bg-card text-card-foreground p-8 sm:p-12 text-center">
             <div className="mx-auto mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-muted">
@@ -340,7 +434,7 @@ export default function Users() {
                                 <Button
                                   size="sm"
                                   className="bg-emerald-600 text-white hover:bg-emerald-700"
-                                  onClick={() => handleApprove(user.id)}
+                                  onClick={() => handleApprove(user)}
                                 >
                                   <Check className="w-4 h-4 mr-1" />
                                   Approve
@@ -348,7 +442,7 @@ export default function Users() {
                                 <Button
                                   size="sm"
                                   variant="destructive"
-                                  onClick={() => handleReject(user.id)}
+                                  onClick={() => openRejectDialog(user)}
                                 >
                                   <X className="w-4 h-4 mr-1" />
                                   Reject
@@ -371,7 +465,7 @@ export default function Users() {
                               <Button
                                 size="sm"
                                 variant="destructive"
-                                onClick={() => handleDelete(user.id)}
+                                onClick={() => openDeleteDialog(user)}
                               >
                                 <Trash2 className="w-4 h-4 mr-1" />
                                 Delete
@@ -468,7 +562,7 @@ export default function Users() {
                           <Button
                             size="sm"
                             className="flex-1 bg-emerald-600 text-white hover:bg-emerald-700"
-                            onClick={() => handleApprove(user.id)}
+                            onClick={() => handleApprove(user)}
                           >
                             <Check className="w-4 h-4 mr-1" />
                             Approve
@@ -477,7 +571,7 @@ export default function Users() {
                             size="sm"
                             variant="destructive"
                             className="flex-1"
-                            onClick={() => handleReject(user.id)}
+                            onClick={() => openRejectDialog(user)}
                           >
                             <X className="w-4 h-4 mr-1" />
                             Reject
@@ -502,7 +596,7 @@ export default function Users() {
                           size="sm"
                           variant="destructive"
                           className="flex-1"
-                          onClick={() => handleDelete(user.id)}
+                          onClick={() => openDeleteDialog(user)}
                         >
                           <Trash2 className="w-4 h-4 mr-1" />
                           Delete
@@ -542,61 +636,245 @@ export default function Users() {
 
         {/* Edit Modal */}
         {editingUser && (
-          <Dialog open={true} onOpenChange={() => setEditingUser(null)}>
+          <Dialog open={true} onOpenChange={closeEdit}>
             <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Edit className="w-5 h-5" />
                   Edit User: {editingUser.name}
                 </DialogTitle>
+                <DialogDescription>
+                  Update user information and optionally upload a new barangay permit
+                  image.
+                </DialogDescription>
               </DialogHeader>
 
               <div className="mt-4 space-y-4">
+                {/* Name */}
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Name</Label>
                   <Input
-                    value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    value={data.name}
+                    onChange={(e) => setData("name", e.target.value)}
                     placeholder="Enter user name"
                   />
+                  {errors.name && (
+                    <p className="text-xs text-red-500 mt-1">{errors.name}</p>
+                  )}
                 </div>
 
+                {/* Email */}
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Email</Label>
                   <Input
                     type="email"
-                    value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    value={data.email}
+                    onChange={(e) => setData("email", e.target.value)}
                     placeholder="Enter email address"
                   />
+                  {errors.email && (
+                    <p className="text-xs text-red-500 mt-1">{errors.email}</p>
+                  )}
                 </div>
 
+                {/* Role */}
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Role</Label>
                   <select
                     className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring transition-all"
-                    value={form.role}
-                    onChange={(e) =>
-                      setForm({ ...form, role: e.target.value as Role })
-                    }
+                    value={data.role}
+                    onChange={(e) => setData("role", e.target.value as Role)}
                   >
                     <option value="user">User</option>
                     <option value="admin">Admin</option>
                     <option value="superadmin">Superadmin</option>
                   </select>
+                  {errors.role && (
+                    <p className="text-xs text-red-500 mt-1">{errors.role}</p>
+                  )}
+                </div>
+
+                {/* Current Barangay Permit preview */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium flex items-center gap-2">
+                    Current Barangay Permit
+                    <span className="text-[11px] text-muted-foreground">
+                      (optional to change)
+                    </span>
+                  </Label>
+                  <div className="w-full flex justify-center">
+                    <div className="w-40 h-40 rounded-xl overflow-hidden border border-border bg-muted flex items-center justify-center">
+                      {editingUser.barangay_permit ? (
+                        <img
+                          src={`/storage/${editingUser.barangay_permit}`}
+                          alt="Barangay Permit"
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = "none";
+                          }}
+                        />
+                      ) : (
+                        <div className="flex flex-col items-center justify-center gap-1 text-muted-foreground">
+                          <ImageIcon className="w-8 h-8" />
+                          <span className="text-[11px] italic">No image</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* New Barangay Permit */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">
+                    New Barangay Permit (optional)
+                  </Label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) =>
+                      setData(
+                        "barangay_permit",
+                        e.target.files && e.target.files.length > 0
+                          ? e.target.files[0]
+                          : null
+                      )
+                    }
+                    className="block w-full text-sm text-muted-foreground
+                    file:mr-4 file:py-2.5 file:px-4
+                    file:rounded-full file:border-0
+                    file:text-sm file:font-semibold
+                    file:bg-violet-50 file:text-violet-700
+                    hover:file:bg-violet-100
+                    dark:file:bg-violet-900/40 dark:file:text-violet-200
+                    file:cursor-pointer"
+                  />
+                  {errors.barangay_permit && (
+                    <p className="text-xs text-red-500 mt-1">
+                      {errors.barangay_permit}
+                    </p>
+                  )}
+                  <p className="text-[11px] text-muted-foreground">
+                    Leave this empty if you don&apos;t want to change the barangay
+                    permit image.
+                  </p>
                 </div>
 
                 <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-4 border-t border-border">
                   <Button
                     variant="outline"
-                    onClick={() => setEditingUser(null)}
+                    onClick={closeEdit}
+                    className="w-full sm:w-auto"
+                    type="button"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleSave}
+                    className="w-full sm:w-auto"
+                    disabled={processing}
+                    type="button"
+                  >
+                    <Check className="w-4 h-4 mr-1" />
+                    {processing ? "Saving..." : "Save Changes"}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {/* Reject User Dialog */}
+        {rejectUserTarget && (
+          <Dialog open={true} onOpenChange={closeRejectDialog}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Reject User</DialogTitle>
+                <DialogDescription>
+                  Provide an optional reason for rejecting{" "}
+                  <span className="font-semibold">{rejectUserTarget.name}</span>.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-3 mt-2">
+                <div className="space-y-1">
+                  <Label className="text-sm font-medium">Reason (optional)</Label>
+                  <textarea
+                    className="w-full min-h-[100px] rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    placeholder="e.g. Information provided is incomplete..."
+                  />
+                </div>
+
+                <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-3 border-t border-border">
+                  <Button
+                    variant="outline"
+                    type="button"
+                    onClick={closeRejectDialog}
                     className="w-full sm:w-auto"
                   >
                     Cancel
                   </Button>
-                  <Button onClick={handleSave} className="w-full sm:w-auto">
-                    <Check className="w-4 h-4 mr-1" />
-                    Save Changes
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={submitReject}
+                    disabled={rejectProcessing}
+                    className="w-full sm:w-auto"
+                  >
+                    <X className="w-4 h-4 mr-1" />
+                    {rejectProcessing ? "Rejecting..." : "Confirm Reject"}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {/* Delete User Dialog with type-to-confirm */}
+        {deleteUserTarget && (
+          <Dialog open={true} onOpenChange={closeDeleteDialog}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Delete User</DialogTitle>
+                <DialogDescription>
+                  This will permanently delete the account of{" "}
+                  <span className="font-semibold">{deleteUserTarget.name}</span>. This
+                  action cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-3 mt-2">
+                <p className="text-sm text-muted-foreground">
+                  To confirm, please type{" "}
+                  <span className="font-mono font-semibold">DELETE</span> in all caps.
+                </p>
+                <Input
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder="Type DELETE to confirm"
+                />
+
+                <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-3 border-t border-border">
+                  <Button
+                    variant="outline"
+                    type="button"
+                    onClick={closeDeleteDialog}
+                    className="w-full sm:w-auto"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={submitDelete}
+                    disabled={
+                      deleteProcessing || deleteConfirmText.trim() !== "DELETE"
+                    }
+                    className="w-full sm:w-auto"
+                  >
+                    <Trash2 className="w-4 h-4 mr-1" />
+                    {deleteProcessing ? "Deleting..." : "Delete User"}
                   </Button>
                 </div>
               </div>

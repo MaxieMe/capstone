@@ -291,13 +291,14 @@ if (!$user) {
         }
 
         $data = $request->validate([
-            'pname'       => ['required', 'string', 'max:255'],
+            'pname'       => ['required', 'string', 'max:255', 'regex:/^[A-Za-zñÑ\s]+$/u'],
             'gender'      => ['required', Rule::in(['male', 'female'])],
             'age'         => ['required', 'integer', 'min:1'],
             'age_unit'    => ['required', Rule::in(['months', 'years'])],
             'category'    => ['required', Rule::in(['cat', 'dog'])],
             'breed'       => ['nullable', 'string', 'max:255'],
-            'color'       => ['required', 'string', 'max:255'],
+            'custom_breed'  => ['nullable', 'string', 'max:255', 'regex:/^[A-Za-zñÑ\s]+$/u'],
+            'color'       => ['required', 'string', 'max:255', 'regex:/^[A-Za-zñÑ\s]+$/u'],
             'location'    => ['required', 'string', 'max:255'],
             'description' => ['required', 'string'],
             'image'       => ['required', 'image', 'max:4096'],
@@ -353,13 +354,14 @@ if (!$user) {
         }
 
         $data = $request->validate([
-            'pname'       => ['required', 'string', 'max:255'],
+            'pname'       => ['required', 'string', 'max:255', 'regex:/^[A-Za-zñÑ\s]+$/u'],
             'gender'      => ['required', Rule::in(['male', 'female'])],
             'age'         => ['required', 'integer', 'min:1'],
             'age_unit'    => ['required', Rule::in(['months', 'years'])],
             'category'    => ['required', Rule::in(['cat', 'dog'])],
             'breed'       => ['nullable', 'string', 'max:255'],
-            'color'       => ['required', 'string', 'max:255'],
+            'custom_breed'  => ['nullable', 'string', 'max:255', 'regex:/^[A-Za-zñÑ\s]+$/u'],
+            'color'       => ['required', 'string', 'max:255', 'regex:/^[A-Za-zñÑ\s]+$/u'],
             'location'    => ['required', 'string', 'max:255'],
             'description' => ['required', 'string'],
             'image'       => ['nullable', 'image', 'max:4096'],

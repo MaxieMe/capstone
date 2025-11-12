@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Storage;
 
 class RoleController extends Controller
 {
@@ -27,7 +28,7 @@ class RoleController extends Controller
 
         return Inertia::render('Manage/Users', [
             'users' => $users,
-            'auth' => [
+            'auth'  => [
                 'user' => Auth::user(),
             ],
         ]);
@@ -40,12 +41,10 @@ class RoleController extends Controller
     {
         $auth = Auth::user();
 
-        // Only admin/superadmin can approve
         if (!in_array($auth->role, ['admin', 'superadmin'])) {
             abort(403, 'Unauthorized');
         }
 
-        // Admin cannot approve another admin/superadmin
         if ($auth->role === 'admin' && in_array($user->role, ['admin', 'superadmin'])) {
             return back()->with('error', 'Admins cannot approve other admins or superadmins.');
         }
@@ -89,28 +88,46 @@ class RoleController extends Controller
 
     /**
      * Update user details (Superadmin only).
+     * ✅ Kasama na barangay_permit (optional).
      */
     public function update(Request $request, User $user)
-    {
-        $auth = Auth::user();
+{
+    $auth = Auth::user();
 
-        if ($auth->role !== 'superadmin') {
-            abort(403, 'Only Superadmin can edit users.');
-        }
-
-        $validated = $request->validate([
-            'name'  => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', Rule::unique('users')->ignore($user->id)],
-            'role'  => ['required', Rule::in(['user', 'admin', 'superadmin'])],
-        ]);
-
-        $user->update($validated);
-
-        return redirect()->route('admin.users')->with('success', "{$user->name} updated successfully!");
+    if ($auth->role !== 'superadmin') {
+        abort(403, 'Only Superadmin can edit users.');
     }
 
+    $validated = $request->validate([
+        'name'            => ['required', 'string', 'max:255', 'regex:/^[A-Za-zñÑ\s]+$/u'],
+        'email'           => ['required', 'email', Rule::unique('users')->ignore($user->id)],
+        'role'            => ['required', Rule::in(['user', 'admin', 'superadmin'])],
+        'barangay_permit' => ['nullable', 'image', 'max:2048'],
+    ]);
+
+    // ✅ Kung may bagong upload, palitan file
+    if ($request->hasFile('barangay_permit')) {
+        if ($user->barangay_permit && Storage::disk('public')->exists($user->barangay_permit)) {
+            Storage::disk('public')->delete($user->barangay_permit);
+        }
+
+        $path = $request->file('barangay_permit')->store('barangay_permits', 'public');
+        $validated['barangay_permit'] = $path;
+    } else {
+        // ❗ WALANG bagong file → huwag galawin yung column sa DB
+        unset($validated['barangay_permit']);
+    }
+
+    $user->update($validated);
+
+    return redirect()
+        ->route('admin.users')
+        ->with('success', "{$user->name} updated successfully!");
+}
+
+
     /**
-     * Permanently delete a user (Superadmin only, hiwalay sa reject).
+     * Permanently delete a user (Superadmin only).
      */
     public function destroy(Request $request, User $user)
     {

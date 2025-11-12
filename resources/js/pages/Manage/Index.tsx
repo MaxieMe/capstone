@@ -25,9 +25,9 @@ import {
   Trash2,
   Image as ImageIcon,
 } from "lucide-react";
-
 import { DOG_BREEDS, CAT_BREEDS } from "@/components1/breed";
 import { route } from "ziggy-js";
+import { useConfirmDialog } from "@/components1/confirm-dialog";
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: "Manage Posts", href: "/manage" }];
 
@@ -54,13 +54,11 @@ interface Adoption {
   location: string | null;
   created_at: string;
   user: Owner | null;
-
   age?: number | null;
   age_unit?: "months" | "years" | string | null;
   breed?: string | null;
   color?: string | null;
   description?: string | null;
-
   image_url?: string | null;
   image_path?: string | null;
 }
@@ -106,7 +104,6 @@ export default function ManageIndex() {
   }>().props;
 
   const [editingPost, setEditingPost] = useState<Adoption | null>(null);
-
   const [form, setForm] = useState({
     pname: "",
     gender: "male",
@@ -118,9 +115,12 @@ export default function ManageIndex() {
     color: "",
     location: "",
     description: "",
+    image: null as File | null, // 🔥 new image field
   });
 
   const isSuperadmin = auth.user.role === "superadmin";
+
+  const { confirm } = useConfirmDialog();
 
   /* ===================== Status Helpers ===================== */
 
@@ -133,7 +133,6 @@ export default function ManageIndex() {
         </span>
       );
     }
-
     if (status === "available") {
       return (
         <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/30">
@@ -142,7 +141,6 @@ export default function ManageIndex() {
         </span>
       );
     }
-
     if (status === "adopted") {
       return (
         <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium bg-slate-500/10 text-slate-500 ring-1 ring-slate-500/30">
@@ -151,7 +149,6 @@ export default function ManageIndex() {
         </span>
       );
     }
-
     if (status === "pending") {
       return (
         <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium bg-blue-500/10 text-blue-500 ring-1 ring-blue-500/30">
@@ -160,7 +157,6 @@ export default function ManageIndex() {
         </span>
       );
     }
-
     if (status === "rejected") {
       return (
         <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium bg-rose-500/10 text-rose-500 ring-1 ring-rose-500/30">
@@ -169,7 +165,6 @@ export default function ManageIndex() {
         </span>
       );
     }
-
     return (
       <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium bg-slate-500/10 text-slate-500 ring-1 ring-slate-500/30">
         {status}
@@ -253,6 +248,7 @@ export default function ManageIndex() {
       adopted: 0,
       rejected: 0,
     };
+
     adoptions.data.forEach((p) => {
       if (p.status === "waiting_for_approval") base.waiting_for_approval++;
       else if (p.status === "available") base.available++;
@@ -260,6 +256,7 @@ export default function ManageIndex() {
       else if (p.status === "adopted") base.adopted++;
       else if (p.status === "rejected") base.rejected++;
     });
+
     return base;
   }, [adoptions.data]);
 
@@ -302,22 +299,89 @@ export default function ManageIndex() {
 
   /* ===================== Actions ===================== */
 
-  const handleApprove = (id: number) => {
-    router.post(route("manage.adoption.approve", id), {}, { preserveScroll: true });
+  const handleApprove = async (post: Adoption) => {
+    const ok = await confirm({
+      title: "Approve Adoption Post",
+      message: `Approve adoption post of ${post.pname}?`,
+      confirmText: "Approve",
+      cancelText: "Cancel",
+      variant: "success",
+    });
+
+    if (!ok) return;
+
+    router.post(
+      route("manage.adoption.approve", post.id),
+      {},
+      {
+        preserveScroll: true,
+      }
+    );
   };
 
-  const handleReject = (id: number) => {
-    if (!window.confirm("Are you sure you want to reject this post?")) return;
-    router.post(route("manage.adoption.reject", id), {}, { preserveScroll: true });
+  // Reject dialog state
+  const [rejectTarget, setRejectTarget] = useState<Adoption | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectProcessing, setRejectProcessing] = useState(false);
+
+  const openRejectDialog = (post: Adoption) => {
+    setRejectTarget(post);
+    setRejectReason("");
   };
 
-  const handleDelete = (id: number) => {
-    if (!window.confirm("Are you sure you want to permanently delete this post?"))
-      return;
+  const closeRejectDialog = () => {
+    setRejectTarget(null);
+    setRejectReason("");
+    setRejectProcessing(false);
+  };
 
-    router.delete(route("manage.adoption.destroy", id), {
+  const submitReject = () => {
+    if (!rejectTarget) return;
+
+    setRejectProcessing(true);
+
+    router.post(
+      route("manage.adoption.reject", rejectTarget.id),
+      {
+        reason: rejectReason || "",
+      },
+      {
+        preserveScroll: true,
+        onFinish: () => setRejectProcessing(false),
+        onSuccess: () => {
+          closeRejectDialog();
+          router.reload({ only: ["adoptions"] });
+        },
+      }
+    );
+  };
+
+  // Delete dialog state
+  const [deleteTarget, setDeleteTarget] = useState<Adoption | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteProcessing, setDeleteProcessing] = useState(false);
+
+  const openDeleteDialog = (post: Adoption) => {
+    setDeleteTarget(post);
+    setDeleteConfirmText("");
+  };
+
+  const closeDeleteDialog = () => {
+    setDeleteTarget(null);
+    setDeleteConfirmText("");
+    setDeleteProcessing(false);
+  };
+
+  const submitDelete = () => {
+    if (!deleteTarget) return;
+
+    setDeleteProcessing(true);
+
+    router.delete(route("manage.adoption.destroy", deleteTarget.id), {
       preserveScroll: true,
+      onFinish: () => setDeleteProcessing(false),
       onSuccess: () => {
+        closeDeleteDialog();
         router.reload({ only: ["adoptions"] });
       },
     });
@@ -326,10 +390,10 @@ export default function ManageIndex() {
   const openEdit = (post: Adoption) => {
     const existingBreed = post.breed || "";
     const isInList =
-      existingBreed && ALL_BREEDS.includes(existingBreed as (typeof ALL_BREEDS)[number]);
+      existingBreed &&
+      ALL_BREEDS.includes(existingBreed as (typeof ALL_BREEDS)[number]);
 
     setEditingPost(post);
-
     setForm({
       pname: post.pname || "",
       gender: (post.gender as string) || "male",
@@ -341,6 +405,7 @@ export default function ManageIndex() {
       color: post.color || "",
       location: post.location || "",
       description: post.description || "",
+      image: null, // 🔥 reset image on open
     });
   };
 
@@ -352,9 +417,11 @@ export default function ManageIndex() {
         ? form.custom_breed || "Other / Not Sure"
         : form.breed || "Other / Not Sure";
 
-    router.put(
+    // 🔥 Use multipart/form-data so we can send optional image
+    router.post(
       route("manage.adoption.update", editingPost.id),
       {
+        _method: "PUT",
         pname: form.pname,
         gender: form.gender,
         age: form.age ? Number(form.age) : 1,
@@ -364,8 +431,10 @@ export default function ManageIndex() {
         color: form.color || null,
         location: form.location || null,
         description: form.description || null,
+        image: form.image, // 🔥 optional new image
       },
       {
+        forceFormData: true,
         preserveScroll: true,
         onSuccess: () => {
           setEditingPost(null);
@@ -391,13 +460,14 @@ export default function ManageIndex() {
                 Manage Adoption Posts
               </h1>
             </div>
+
             <div className="flex items-center gap-2 text-sm text-right">
               <span className="text-muted-foreground">Total Posts:</span>
-              <span className="font-semibold text-lg">{statusSummary.total}</span>
+              <span className="font-semibold text-lg">
+                {statusSummary.total}
+              </span>
             </div>
           </div>
-
-
 
           {/* FILTER BAR: Category + Status */}
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -406,6 +476,7 @@ export default function ManageIndex() {
               <span className="text-xs text-muted-foreground mr-1 mt-1">
                 Category:
               </span>
+
               {[
                 { label: "All", value: "all" as CategoryFilter },
                 { label: "Dogs", value: "dog" as CategoryFilter },
@@ -431,6 +502,7 @@ export default function ManageIndex() {
               <span className="text-xs text-muted-foreground mr-1 mt-1">
                 Status:
               </span>
+
               {[
                 { label: "All", value: "all" as StatusFilter },
                 { label: "Waiting", value: "waiting_for_approval" as StatusFilter },
@@ -506,6 +578,7 @@ export default function ManageIndex() {
                           <ImageIcon className="w-8 h-8 text-muted-foreground" />
                         </div>
                       )}
+
                       <div className="absolute top-2 left-2 flex items-center gap-1">
                         <span className="font-mono text-[11px] bg-black/60 text-white px-2 py-0.5 rounded-full">
                           #{post.id}
@@ -522,6 +595,7 @@ export default function ManageIndex() {
                             <PawPrint className="w-4 h-4 text-primary flex-shrink-0" />
                             <span className="truncate">{post.pname}</span>
                           </div>
+
                           {post.user && (
                             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                               <UserIcon className="w-3.5 h-3.5 flex-shrink-0" />
@@ -537,12 +611,13 @@ export default function ManageIndex() {
                           <span className="w-1.5 h-1.5 rounded-full bg-primary" />
                           {categoryLabel(post.category)}
                         </span>
+
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted">
                           {genderLabel(post.gender)}
                         </span>
                       </div>
 
-                      {/* Status line – mas readable */}
+                      {/* Status line */}
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-[11px] text-muted-foreground font-semibold">
                           Status:
@@ -560,7 +635,9 @@ export default function ManageIndex() {
                         </div>
                         <div className="flex items-center gap-1.5">
                           <CalendarClock className="w-3.5 h-3.5 flex-shrink-0" />
-                          <span>{new Date(post.created_at).toLocaleString()}</span>
+                          <span>
+                            {new Date(post.created_at).toLocaleString()}
+                          </span>
                         </div>
                       </div>
 
@@ -614,16 +691,17 @@ export default function ManageIndex() {
                           <Button
                             size="sm"
                             className="flex-1 bg-emerald-600 text-white hover:bg-emerald-700"
-                            onClick={() => handleApprove(post.id)}
+                            onClick={() => handleApprove(post)}
                           >
                             <Check className="w-4 h-4 mr-1" />
                             Approve
                           </Button>
+
                           <Button
                             size="sm"
                             variant="destructive"
                             className="flex-1"
-                            onClick={() => handleReject(post.id)}
+                            onClick={() => openRejectDialog(post)}
                           >
                             <XCircle className="w-4 h-4 mr-1" />
                             Reject
@@ -650,7 +728,7 @@ export default function ManageIndex() {
                               size="sm"
                               variant="destructive"
                               className="flex-1"
-                              onClick={() => handleDelete(post.id)}
+                              onClick={() => openDeleteDialog(post)}
                             >
                               <Trash2 className="w-4 h-4 mr-1" />
                               Delete
@@ -707,7 +785,9 @@ export default function ManageIndex() {
                   <Label className="text-sm font-medium">Pet Name</Label>
                   <Input
                     value={form.pname}
-                    onChange={(e) => setForm({ ...form, pname: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, pname: e.target.value })
+                    }
                     placeholder="Enter pet name"
                   />
                 </div>
@@ -719,19 +799,25 @@ export default function ManageIndex() {
                     <select
                       className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
                       value={form.gender}
-                      onChange={(e) => setForm({ ...form, gender: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, gender: e.target.value })
+                      }
                     >
                       <option value="male">Male</option>
                       <option value="female">Female</option>
                     </select>
                   </div>
+
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Category</Label>
                     <select
                       className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
                       value={form.category}
                       onChange={(e) =>
-                        setForm({ ...form, category: e.target.value as "dog" | "cat" })
+                        setForm({
+                          ...form,
+                          category: e.target.value as "dog" | "cat",
+                        })
                       }
                     >
                       <option value="dog">Dog</option>
@@ -748,16 +834,21 @@ export default function ManageIndex() {
                       type="number"
                       min={1}
                       value={form.age}
-                      onChange={(e) => setForm({ ...form, age: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, age: e.target.value })
+                      }
                       placeholder="e.g. 2"
                     />
                   </div>
+
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Age Unit</Label>
                     <select
                       className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
                       value={form.age_unit}
-                      onChange={(e) => setForm({ ...form, age_unit: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, age_unit: e.target.value })
+                      }
                     >
                       <option value="years">Years</option>
                       <option value="months">Months</option>
@@ -816,7 +907,9 @@ export default function ManageIndex() {
                   <Label className="text-sm font-medium">Color</Label>
                   <Input
                     value={form.color}
-                    onChange={(e) => setForm({ ...form, color: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, color: e.target.value })
+                    }
                     placeholder="e.g. White, Brown"
                   />
                 </div>
@@ -826,7 +919,9 @@ export default function ManageIndex() {
                   <Label className="text-sm font-medium">Location</Label>
                   <Input
                     value={form.location}
-                    onChange={(e) => setForm({ ...form, location: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, location: e.target.value })
+                    }
                     placeholder="e.g. Valenzuela City"
                   />
                 </div>
@@ -842,6 +937,51 @@ export default function ManageIndex() {
                     }
                     placeholder="Describe the pet, personality, requirements, etc."
                   />
+                </div>
+
+                {/* Current Image Preview */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium flex items-center gap-2">
+                    Current Photo{" "}
+                    <span className="text-[11px] text-muted-foreground">
+                      (optional to change)
+                    </span>
+                  </Label>
+                  <div className="w-full flex justify-center">
+                    <div className="w-40 h-40 rounded-xl overflow-hidden border border-border bg-muted flex items-center justify-center">
+                      {editingPost.image_url ? (
+                        <img
+                          src={editingPost.image_url}
+                          alt={editingPost.pname}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            if (e.currentTarget.src !== PLACEHOLDER) {
+                              e.currentTarget.src = PLACEHOLDER;
+                            }
+                          }}
+                        />
+                      ) : (
+                        <ImageIcon className="w-10 h-10 text-muted-foreground" />
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Upload New Image */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">New Photo</Label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] ?? null;
+                      setForm((prev) => ({ ...prev, image: file }));
+                    }}
+                    className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2.5 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100 dark:file:bg-violet-900/40 dark:file:text-violet-200 file:cursor-pointer"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Leave this empty if you don&apos;t want to change the photo.
+                  </p>
                 </div>
 
                 <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-4 border-t border-border">
@@ -860,6 +1000,115 @@ export default function ManageIndex() {
               </div>
             </DialogContent>
           </Dialog>
+        )}
+
+        {/* Reject Adoption Dialog */}
+        {rejectTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+            <div className="w-full max-w-md rounded-2xl bg-white dark:bg-gray-900 shadow-2xl max-h-[90vh] overflow-hidden">
+              <div className="px-5 pt-4 pb-3 border-b border-gray-200 dark:border-gray-800">
+                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-50">
+                  Reject Adoption Post
+                </h2>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Provide an optional reason for rejecting{" "}
+                  <span className="font-semibold">
+                    {rejectTarget.pname || "this post"}
+                  </span>
+                  .
+                </p>
+              </div>
+
+              <div className="px-5 py-4 space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Reason (optional)
+                  </label>
+                  <textarea
+                    className="w-full min-h-[110px] rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    placeholder="e.g. Incomplete information or not eligible for listing..."
+                  />
+                </div>
+
+                <div className="px-0 pb-4 pt-2 flex justify-end gap-2 border-t border-gray-200 dark:border-gray-800">
+                  <button
+                    type="button"
+                    onClick={closeRejectDialog}
+                    className="px-4 py-2 rounded-xl border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={submitReject}
+                    disabled={rejectProcessing}
+                    className="px-4 py-2 rounded-xl text-sm font-semibold text-white shadow-sm bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {rejectProcessing ? "Rejecting..." : "Confirm Reject"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Adoption Dialog */}
+        {deleteTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+            <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-gray-900 shadow-2xl max-h-[90vh] overflow-hidden">
+              <div className="px-5 pt-4 pb-3 border-b border-gray-200 dark:border-gray-800">
+                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-50">
+                  Delete Adoption Post
+                </h2>
+              </div>
+
+              <div className="px-5 py-4 space-y-3">
+                <p className="text-sm text-gray-700 dark:text-gray-200">
+                  This will permanently delete the adoption post of{" "}
+                  <span className="font-semibold">
+                    {deleteTarget.pname || "this post"}
+                  </span>
+                  . This action cannot be undone.
+                </p>
+
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  To confirm, please type{" "}
+                  <span className="font-mono font-semibold">DELETE</span> in all
+                  caps.
+                </p>
+
+                <input
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder="Type DELETE to confirm"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                />
+
+                <div className="px-0 pb-4 pt-2 flex justify-end gap-2 border-t border-gray-200 dark:border-gray-800">
+                  <button
+                    type="button"
+                    onClick={closeDeleteDialog}
+                    className="px-4 py-2 rounded-xl border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={submitDelete}
+                    disabled={
+                      deleteProcessing || deleteConfirmText.trim() !== "DELETE"
+                    }
+                    className="px-4 py-2 rounded-xl text-sm font-semibold text-white shadow-sm bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {deleteProcessing ? "Deleting..." : "Delete"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </AppLayout>

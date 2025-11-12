@@ -1,4 +1,4 @@
-// resources/js/Components/FlashToast.tsx
+// resources/js/Components1/flash-toast.tsx
 import React, { useEffect, useState } from "react";
 import { usePage } from "@inertiajs/react";
 
@@ -7,6 +7,7 @@ type FlashProps = {
     success?: string;
     error?: string;
   };
+  errors?: Record<string, string>;
 };
 
 type ToastState = {
@@ -15,7 +16,7 @@ type ToastState = {
 };
 
 export default function FlashToast() {
-  const { flash } = usePage<FlashProps>().props;
+  const { flash, errors } = usePage<FlashProps>().props;
   const [toast, setToast] = useState<ToastState | null>(null);
   const [visible, setVisible] = useState(false);
 
@@ -23,17 +24,29 @@ export default function FlashToast() {
     const success = flash?.success;
     const error = flash?.error;
 
+    // ✅ 1) success message from session
     if (success) {
       setToast({ type: "success", message: success });
       setVisible(true);
-    } else if (error) {
+    }
+    // ✅ 2) explicit flash error from session
+    else if (error) {
       setToast({ type: "error", message: error });
+      setVisible(true);
+    }
+    // ✅ 3) validation errors (Laravel validator -> Inertia `errors`)
+    else if (errors && Object.keys(errors).length > 0) {
+      // pwede: kunin lahat
+      const combined = Object.values(errors)[0];
+      // kung gusto mo first error lang:
+      // const combined = Object.values(errors)[0];
+
+      setToast({ type: "error", message: combined });
       setVisible(true);
     } else {
       return;
     }
 
-    // ⏱ auto-hide after 4 seconds
     const timer = setTimeout(() => {
       setVisible(false);
     }, 5000);
@@ -41,7 +54,7 @@ export default function FlashToast() {
     return () => {
       clearTimeout(timer);
     };
-  }, [flash?.success, flash?.error]);
+  }, [flash?.success, flash?.error, errors]);
 
   if (!toast || !visible) return null;
 
@@ -57,9 +70,7 @@ export default function FlashToast() {
             : "bg-rose-50 border-rose-200 text-rose-800"
         }`}
       >
-        <div className="mt-0.5">
-          {isSuccess ? "✅" : "⚠️"}
-        </div>
+        <div className="mt-0.5">{isSuccess ? "✅" : "⚠️"}</div>
         <div className="flex-1">
           <p className="font-semibold mb-0.5">
             {isSuccess ? "Success" : "Something went wrong"}

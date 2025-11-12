@@ -9,6 +9,7 @@ import React, { useMemo, useState } from 'react';
 import { CAT_BREEDS, DOG_BREEDS } from '@/components1/breed';
 import { route } from 'ziggy-js';
 import { Button } from '@/components/ui/button';
+import { useConfirmDialog } from '@/components1/confirm-dialog'; // 🔥 added
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Adoption', href: '/adoption' }];
 
@@ -76,6 +77,9 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
 
   const currentUserId = user?.id as number | undefined;
 
+  // confirm dialog hook (same as sponsor/manage)
+  const { confirm } = useConfirmDialog(); // 🔥
+
   // UI state
   const [showModal, setShowModal] = useState(false);
   const [editingPet, setEditingPet] = useState<Pet | null>(null);
@@ -88,6 +92,11 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
       ? (filters.gender.toLowerCase() === 'male' ? 'Male' : 'Female')
       : 'All') as any
   );
+
+  // DELETE modal state (type DELETE) 🔥
+  const [deleteTarget, setDeleteTarget] = useState<Pet | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteProcessing, setDeleteProcessing] = useState(false);
 
   // guest search (for guest user directory)
   const guestSearchForm = useForm({ q: filters?.q ?? '' });
@@ -233,8 +242,17 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
     }
   };
 
-  const handleCancelPending = (pet: Pet) => {
-    if (!confirm('Cancel this pending adoption?')) return;
+  // 🔥 New: confirm dialog for Cancel Pending
+  const handleCancelPending = async (pet: Pet) => {
+    const ok = await confirm({
+      title: 'Cancel Adoption Request',
+      message: `Cancel this pending adoption request for ${pet.pname}?`,
+      confirmText: 'Yes, cancel',
+      cancelText: 'No',
+      variant: 'warning',
+    });
+
+    if (!ok) return;
 
     router.post(
       route('adoption.cancel', pet.id),
@@ -245,8 +263,17 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
     );
   };
 
-  const handleConfirmPending = (pet: Pet) => {
-    if (!confirm('Mark this pet as adopted?')) return;
+  // 🔥 New: confirm dialog for Confirm/Adopt
+  const handleConfirmPending = async (pet: Pet) => {
+    const ok = await confirm({
+      title: 'Mark as Adopted',
+      message: `Mark ${pet.pname} as adopted?`,
+      confirmText: 'Yes, mark adopted',
+      cancelText: 'No',
+      variant: 'success',
+    });
+
+    if (!ok) return;
 
     router.post(
       route('adoption.markAdopted', pet.id),
@@ -255,11 +282,29 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
     );
   };
 
-  const handleDelete = (pet: Pet) => {
-    if (!confirm('Are you sure you want to delete this post?')) return;
+  // 🔥 Delete modal helpers (type DELETE)
+  const openDeleteDialog = (pet: Pet) => {
+    setDeleteTarget(pet);
+    setDeleteConfirmText('');
+  };
 
-    router.delete(route('adoption.destroy', pet.id), {
+  const closeDeleteDialog = () => {
+    setDeleteTarget(null);
+    setDeleteConfirmText('');
+    setDeleteProcessing(false);
+  };
+
+  const submitDelete = () => {
+    if (!deleteTarget) return;
+
+    setDeleteProcessing(true);
+
+    router.delete(route('adoption.destroy', deleteTarget.id), {
       preserveScroll: true,
+      onFinish: () => setDeleteProcessing(false),
+      onSuccess: () => {
+        closeDeleteDialog();
+      },
     });
   };
 
@@ -361,7 +406,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                       <div className="p-5 pt-8">
                         <div className="flex items-center justify-between">
                           <div>
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                            <h3 className="text-lg font-bold text-gray-900 dark:text:white">
                               {u.name}
                             </h3>
                             <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -391,7 +436,6 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                           >
                             Visit Profile
                           </Link>
-
                         </div>
                       </div>
                     </div>
@@ -941,7 +985,6 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                     >
                       About me
                     </Link>
-
                   </div>
 
                   {/* Second row: Owner actions */}
@@ -965,9 +1008,9 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                         </>
                       ) : (
                         <>
-                          {/* Adopted or other → Delete only */}
+                          {/* Adopted or other → Delete only (with modal) */}
                           <button
-                            onClick={() => handleDelete(pet)}
+                            onClick={() => openDeleteDialog(pet)}
                             className="flex-1 min-w-[90px] text-center border-2 border-rose-500 text-rose-600 dark:text-rose-300 rounded-xl py-2 text-sm font-semibold hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-all"
                           >
                             Delete
@@ -1040,6 +1083,63 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                 <span dangerouslySetInnerHTML={{ __html: link.label }} />
               </Button>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* 🔥 Delete Pet Dialog */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-gray-900 shadow-2xl max-h-[90vh] overflow-hidden">
+            <div className="px-5 pt-4 pb-3 border-b border-gray-200 dark:border-gray-800">
+              <h2 className="text-base font-semibold text-gray-900 dark:text-gray-50">
+                Delete Adoption Post
+              </h2>
+            </div>
+
+            <div className="px-5 py-4 space-y-3">
+              <p className="text-sm text-gray-700 dark:text-gray-200">
+                This will permanently delete the adoption post of{' '}
+                <span className="font-semibold">
+                  {deleteTarget.pname || 'this pet'}
+                </span>
+                . This action cannot be undone.
+              </p>
+
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                To confirm, please type{' '}
+                <span className="font-mono font-semibold">DELETE</span> in all
+                caps.
+              </p>
+
+              <input
+                type="text"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder="Type DELETE to confirm"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+              />
+
+              <div className="px-0 pb-4 pt-2 flex justify-end gap-2 border-t border-gray-200 dark:border-gray-800">
+                <button
+                  type="button"
+                  onClick={closeDeleteDialog}
+                  className="px-4 py-2 rounded-xl border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={submitDelete}
+                  disabled={
+                    deleteProcessing || deleteConfirmText.trim() !== 'DELETE'
+                  }
+                  className="px-4 py-2 rounded-xl text-sm font-semibold text-white shadow-sm bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {deleteProcessing ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

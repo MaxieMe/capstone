@@ -4,6 +4,7 @@ import { Head, router, Link, useForm } from "@inertiajs/react";
 import AppLayout from "@/layouts/app-layout";
 import { route } from "ziggy-js";
 import type { BreadcrumbItem } from "@/types";
+import { useConfirmDialog } from "@/components1/confirm-dialog";
 
 type Role = "user" | "admin" | "superadmin";
 
@@ -24,7 +25,7 @@ type Sponsor = {
 };
 
 type PageProps = {
-  sponsors: Sponsor[];
+  sponsors?: Sponsor[];
   filters?: {
     status?: string | null;
   };
@@ -67,15 +68,20 @@ export default function SponsorIndex({ sponsors, filters, auth }: PageProps) {
   const isAdmin = role === "admin";
   const isSuperadmin = role === "superadmin";
 
+  const { confirm } = useConfirmDialog();
+
+  // 🔒 Safe array
+  const safeSponsors: Sponsor[] = Array.isArray(sponsors) ? sponsors : [];
+
   const [activeStatus, setActiveStatus] = useState<
     "All" | "waiting_for_approval" | "approved" | "rejected"
   >((filters?.status as any) || "All");
 
   const filteredSponsors = useMemo(() => {
-    return (Array.isArray(sponsors) ? sponsors : []).filter((s) =>
+    return safeSponsors.filter((s) =>
       activeStatus === "All" ? true : s.status === activeStatus
     );
-  }, [sponsors, activeStatus]);
+  }, [safeSponsors, activeStatus]);
 
   const applyStatusFilter = (status: typeof activeStatus) => {
     setActiveStatus(status);
@@ -89,10 +95,15 @@ export default function SponsorIndex({ sponsors, filters, auth }: PageProps) {
 
   /* =============== APPROVE / REJECT / DELETE =============== */
 
-  const approveSponsor = (s: Sponsor) => {
-    if (!confirm(`Approve sponsor QR of ${s.user?.name || "this user"}?`)) {
-      return;
-    }
+  const approveSponsor = async (s: Sponsor) => {
+    const ok = await confirm({
+      title: "Approve Sponsor QR",
+      message: `Approve sponsor QR of ${s.user?.name || "this user"}?`,
+      confirmText: "Approve",
+      cancelText: "Cancel",
+    });
+
+    if (!ok) return;
 
     router.post(
       route("sponsor.approve", s.id),
@@ -103,11 +114,22 @@ export default function SponsorIndex({ sponsors, filters, auth }: PageProps) {
     );
   };
 
-  const rejectSponsor = (s: Sponsor) => {
-    const reason = prompt(
-      `Reject sponsor QR of ${s.user?.name || "this user"}.\nOptional reason:`,
+  const rejectSponsor = async (s: Sponsor) => {
+    const ok = await confirm({
+      title: "Reject Sponsor QR",
+      message: `Reject sponsor QR of ${s.user?.name || "this user"}? You can optionally add a reason after this.`,
+      confirmText: "Reject",
+      cancelText: "Cancel",
+      variant: "danger",
+    });
+
+    if (!ok) return;
+
+    const reason = window.prompt(
+      `Optional reason for rejecting ${s.user?.name || "this user"}:`,
       s.reject_reason || ""
     );
+
     if (reason === null) return;
 
     router.post(
@@ -119,14 +141,18 @@ export default function SponsorIndex({ sponsors, filters, auth }: PageProps) {
     );
   };
 
-  const deleteSponsor = (s: Sponsor) => {
-    if (
-      !confirm(
-        `Delete sponsor QR of ${s.user?.name || "this user"}? This cannot be undone.`
-      )
-    ) {
-      return;
-    }
+  const deleteSponsor = async (s: Sponsor) => {
+    const ok = await confirm({
+      title: "Delete Sponsor QR",
+      message: `Delete sponsor QR of ${
+        s.user?.name || "this user"
+      }? This cannot be undone.`,
+      confirmText: "Delete",
+      cancelText: "Cancel",
+      variant: "danger",
+    });
+
+    if (!ok) return;
 
     router.delete(route("sponsor.destroy", s.id), {
       preserveScroll: true,
@@ -186,7 +212,7 @@ export default function SponsorIndex({ sponsors, filters, auth }: PageProps) {
     <AppLayout breadcrumbs={breadcrumbs}>
       <Head title="Sponsor QR Approvals" />
 
-      {/* wala nang inline flash; global FlashToast na sa layout */}
+      {/* Global FlashToast na sa layout */}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
@@ -199,7 +225,7 @@ export default function SponsorIndex({ sponsors, filters, auth }: PageProps) {
           <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
             Total Requests:{" "}
             <span className="font-semibold text-lg text-gray-900 dark:text-gray-100">
-              {sponsors.length}
+              {safeSponsors.length}
             </span>
           </div>
         </div>
@@ -238,7 +264,8 @@ export default function SponsorIndex({ sponsors, filters, auth }: PageProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
             {filteredSponsors.map((s) => {
               const canApproveReject =
-                s.status === "waiting_for_approval" && (isAdmin || isSuperadmin);
+                s.status === "waiting_for_approval" &&
+                (isAdmin || isSuperadmin);
               const canEdit = isSuperadmin && s.status === "approved";
               const canDelete = isSuperadmin;
 
@@ -381,15 +408,17 @@ export default function SponsorIndex({ sponsors, filters, auth }: PageProps) {
                       </>
                     )}
 
-                    {!canApproveReject && s.status === "rejected" && canDelete && (
-                      <button
-                        type="button"
-                        onClick={() => deleteSponsor(s)}
-                        className="flex-1 text-center border-2 border-rose-500 text-rose-600 dark:text-rose-300 rounded-xl py-2 text-xs font-semibold hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-colors"
-                      >
-                        Delete
-                      </button>
-                    )}
+                    {!canApproveReject &&
+                      s.status === "rejected" &&
+                      canDelete && (
+                        <button
+                          type="button"
+                          onClick={() => deleteSponsor(s)}
+                          className="flex-1 text-center border-2 border-rose-500 text-rose-600 dark:text-rose-300 rounded-xl py-2 text-xs font-semibold hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-colors"
+                        >
+                          Delete
+                        </button>
+                      )}
 
                     {!canApproveReject &&
                       s.status !== "approved" &&

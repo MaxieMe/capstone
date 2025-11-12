@@ -9,6 +9,13 @@ type ProfileUser = {
   email?: string | null;
 };
 
+type SponsorInfo = {
+  id: number;
+  status: 'waiting_for_approval' | 'approved' | 'rejected';
+  reject_reason?: string | null;
+  qr_url?: string | null;
+};
+
 type Pet = {
   id: number;
   pname: string;
@@ -26,6 +33,7 @@ type Pet = {
   created_at?: string | null;
   life_stage?: string | null;   // optional from backend
   age_text?: string | null;     // optional from backend
+  sponsor?: SponsorInfo | null;
 };
 
 const PLACEHOLDER =
@@ -69,6 +77,8 @@ export default function Show({ pet }: { pet: Pet }) {
   const { props } = usePage();
   const currentUserId = (props as any)?.auth?.user?.id as number | undefined;
   const isOwner = !!currentUserId && pet.user?.id === currentUserId;
+  const sponsor = pet.sponsor ?? null;
+   const [showSponsorViewModal, setShowSponsorViewModal] = useState(false);
 
   // ====== State for Adoption Inquiry modal (IMPROVED FORM) ======
   const [isInquiryOpen, setInquiryOpen] = useState(false);
@@ -353,15 +363,19 @@ export default function Show({ pet }: { pet: Pet }) {
       </button>
     )}
 
-    {/* SPONSOR ME → always shown for non-owners */}
-    <button
-      onClick={() => setSponsorshipOpen(true)}
-      className="flex-1 text-center bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white font-bold px-6 sm:px-8 py-3 sm:py-4 rounded-2xl transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-105"
-    >
-      Sponsor me
-    </button>
+    {/* SPONSOR ME → only if may public QR (approved) */}
+    {sponsor && sponsor.status === 'approved' && sponsor.qr_url && (
+      <button
+        type="button"
+        onClick={() => setShowSponsorViewModal(true)}
+        className="flex-1 text-center bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white font-bold px-6 sm:px-8 py-3 sm:py-4 rounded-2xl transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-105"
+      >
+        Sponsor me
+      </button>
+    )}
   </div>
 )}
+
 
                 {/* Info Box for Adoption Ready — ONLY when NOT owner */}
                 {!isOwner && pet.status === 'available' && (
@@ -605,7 +619,52 @@ export default function Show({ pet }: { pet: Pet }) {
               </form>
             </div>
           </div>
+
         )}
+        {/* FULL-SCREEN QR VIEW MODAL – same style as Profile/Show */}
+{showSponsorViewModal && sponsor?.qr_url && (
+  <div
+    className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+    onClick={() => setShowSponsorViewModal(false)}
+  >
+    <div
+      className="relative max-w-[95vw] max-h-[90vh] flex flex-col items-center"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <button
+        onClick={() => setShowSponsorViewModal(false)}
+        className="absolute -top-10 right-0 text-white hover:text-gray-200"
+        aria-label="Close"
+      >
+        ✕
+      </button>
+
+      <h2 className="text-lg sm:text-xl font-semibold text-white mb-4 text-center">
+        Sponsor {pet.user?.name || 'this owner'}
+      </h2>
+
+      <a
+        href={sponsor.qr_url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block"
+        title="Open QR code in a new tab"
+      >
+        <img
+          src={sponsor.qr_url}
+          alt="Sponsor QR code"
+          className="max-w-[90vw] max-h-[80vh] object-contain bg-white rounded-2xl shadow-2xl"
+        />
+      </a>
+
+      <p className="mt-4 text-xs sm:text-sm text-gray-200 text-center max-w-md">
+        Tap or click the QR code to open it in a new tab, or scan it directly using
+        your camera or payment app.
+      </p>
+    </div>
+  </div>
+)}
+
       </div>
     </AppLayout>
   );

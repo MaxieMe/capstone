@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Adoption;
+use App\Models\Sponsor;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -209,7 +210,7 @@ if (!$user) {
      * GET /adoption/{adoption}
      * Show single adoption post.
      */
-    public function show(Adoption $adoption, Request $request)
+   public function show(Adoption $adoption, Request $request)
 {
     $user       = $request->user();
     $viewerId   = $user?->id;
@@ -218,11 +219,6 @@ if (!$user) {
     $isOwner = $viewerId === $adoption->user_id;
     $isAdmin = in_array($viewerRole, ['admin', 'superadmin'], true);
 
-    // ✅ Visibility rules for show():
-    // - Owner or Admin: pwedeng makita kahit anong status
-    // - Guest / ibang user:
-    //     → pwedeng makita kung "available" or "pending"
-    //     → iba pang status (waiting_for_approval, rejected, adopted) → 404
     if (
         !$isOwner &&
         !$isAdmin &&
@@ -238,6 +234,18 @@ if (!$user) {
     $imageUrl = $adoption->image_path
         ? asset('storage/' . $adoption->image_path)
         : null;
+
+    // 🔹 kunin sponsor record ng owner
+    $sponsor = Sponsor::where('user_id', $adoption->user_id)->first();
+
+    $sponsorPayload = $sponsor ? (object)[
+        'id'            => $sponsor->id,
+        'status'        => $sponsor->status,
+        'reject_reason' => $sponsor->reject_reason,
+        'qr_url'        => $sponsor->qr_path
+            ? asset('storage/' . $sponsor->qr_path)
+            : null,
+    ] : null;
 
     $pet = (object)[
         'id'          => $adoption->id,
@@ -259,12 +267,16 @@ if (!$user) {
         'image_url'   => $imageUrl,
         'age_text'    => $ageText,
         'life_stage'  => $lifeStage,
+
+        // 🔹 ipapasa sa front-end:
+        'sponsor'     => $sponsorPayload,
     ];
 
     return Inertia::render('Adoption/Show', [
         'pet' => $pet,
     ]);
 }
+
 
 
     /**

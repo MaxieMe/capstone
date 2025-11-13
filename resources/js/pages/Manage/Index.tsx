@@ -115,11 +115,10 @@ export default function ManageIndex() {
     color: "",
     location: "",
     description: "",
-    image: null as File | null, // 🔥 new image field
+    image: null as File | null,
   });
 
   const isSuperadmin = auth.user.role === "superadmin";
-
   const { confirm } = useConfirmDialog();
 
   /* ===================== Status Helpers ===================== */
@@ -260,7 +259,7 @@ export default function ManageIndex() {
     return base;
   }, [adoptions.data]);
 
-  /* ===================== Filters (category + status) ===================== */
+  /* ===================== Filters ===================== */
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(
     (filters?.status as StatusFilter) || "all"
@@ -279,17 +278,9 @@ export default function ManageIndex() {
 
     const params: Record<string, string> = {};
 
-    if (s !== "all") {
-      params.status = s;
-    }
-
-    if (c !== "all") {
-      params.category = c;
-    }
-
-    if (filters?.q) {
-      params.q = String(filters.q);
-    }
+    if (s !== "all") params.status = s;
+    if (c !== "all") params.category = c;
+    if (filters?.q) params.q = String(filters.q);
 
     router.get(route("manage.index"), params, {
       preserveScroll: true,
@@ -319,7 +310,7 @@ export default function ManageIndex() {
     );
   };
 
-  // Reject dialog state
+  // 🔥 Reject dialog state (with reason)
   const [rejectTarget, setRejectTarget] = useState<Adoption | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [rejectProcessing, setRejectProcessing] = useState(false);
@@ -405,7 +396,7 @@ export default function ManageIndex() {
       color: post.color || "",
       location: post.location || "",
       description: post.description || "",
-      image: null, // 🔥 reset image on open
+      image: null,
     });
   };
 
@@ -417,7 +408,6 @@ export default function ManageIndex() {
         ? form.custom_breed || "Other / Not Sure"
         : form.breed || "Other / Not Sure";
 
-    // 🔥 Use multipart/form-data so we can send optional image
     router.post(
       route("manage.adoption.update", editingPost.id),
       {
@@ -431,7 +421,7 @@ export default function ManageIndex() {
         color: form.color || null,
         location: form.location || null,
         description: form.description || null,
-        image: form.image, // 🔥 optional new image
+        image: form.image,
       },
       {
         forceFormData: true,
@@ -469,7 +459,7 @@ export default function ManageIndex() {
             </div>
           </div>
 
-          {/* FILTER BAR: Category + Status */}
+          {/* FILTER BAR */}
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             {/* Category filter */}
             <div className="flex flex-wrap gap-2">
@@ -541,7 +531,7 @@ export default function ManageIndex() {
           </div>
         ) : (
           <>
-            {/* CARD GRID – ALL BREAKPOINTS */}
+            {/* Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
               {adoptions.data.map((post) => {
                 const waiting = post.status === "waiting_for_approval";
@@ -641,7 +631,7 @@ export default function ManageIndex() {
                         </div>
                       </div>
 
-                      {/* DETAILS BOX – Age + Life Stage + Breed + Color + Desc */}
+                      {/* Details */}
                       {(post.breed ||
                         post.age != null ||
                         post.color ||
@@ -682,6 +672,8 @@ export default function ManageIndex() {
                           )}
                         </div>
                       )}
+
+                      {/* Optional: show reject_reason in manage page */}
                     </div>
 
                     {/* Actions */}
@@ -939,7 +931,7 @@ export default function ManageIndex() {
                   />
                 </div>
 
-                {/* Current Image Preview */}
+                {/* Current Image */}
                 <div className="space-y-2">
                   <Label className="text-sm font-medium flex items-center gap-2">
                     Current Photo{" "}
@@ -1002,7 +994,7 @@ export default function ManageIndex() {
           </Dialog>
         )}
 
-        {/* Reject Adoption Dialog */}
+        {/* 🔥 Reject Adoption Dialog */}
         {rejectTarget && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
             <div className="w-full max-w-md rounded-2xl bg-white dark:bg-gray-900 shadow-2xl max-h-[90vh] overflow-hidden">
@@ -1010,27 +1002,10 @@ export default function ManageIndex() {
                 <h2 className="text-base font-semibold text-gray-900 dark:text-gray-50">
                   Reject Adoption Post
                 </h2>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Provide an optional reason for rejecting{" "}
-                  <span className="font-semibold">
-                    {rejectTarget.pname || "this post"}
-                  </span>
-                  .
-                </p>
+                
               </div>
 
               <div className="px-5 py-4 space-y-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Reason (optional)
-                  </label>
-                  <textarea
-                    className="w-full min-h-[110px] rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
-                    value={rejectReason}
-                    onChange={(e) => setRejectReason(e.target.value)}
-                    placeholder="e.g. Incomplete information or not eligible for listing..."
-                  />
-                </div>
 
                 <div className="px-0 pb-4 pt-2 flex justify-end gap-2 border-t border-gray-200 dark:border-gray-800">
                   <button

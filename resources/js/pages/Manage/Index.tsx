@@ -310,39 +310,22 @@ export default function ManageIndex() {
     );
   };
 
-  // 🔥 Reject dialog state (with reason)
-  const [rejectTarget, setRejectTarget] = useState<Adoption | null>(null);
-  const [rejectReason, setRejectReason] = useState("");
-  const [rejectProcessing, setRejectProcessing] = useState(false);
+  const handleReject = async (post: Adoption) => {
+    const ok = await confirm({
+      title: "Reject Adoption Post",
+      message: `Reject adoption post of ${post.pname}?`,
+      confirmText: "Reject",
+      cancelText: "Cancel",
+      variant: "danger",
+    });
 
-  const openRejectDialog = (post: Adoption) => {
-    setRejectTarget(post);
-    setRejectReason("");
-  };
-
-  const closeRejectDialog = () => {
-    setRejectTarget(null);
-    setRejectReason("");
-    setRejectProcessing(false);
-  };
-
-  const submitReject = () => {
-    if (!rejectTarget) return;
-
-    setRejectProcessing(true);
+    if (!ok) return;
 
     router.post(
-      route("manage.adoption.reject", rejectTarget.id),
-      {
-        reason: rejectReason || "",
-      },
+      route("manage.adoption.reject", post.id),
+      {},
       {
         preserveScroll: true,
-        onFinish: () => setRejectProcessing(false),
-        onSuccess: () => {
-          closeRejectDialog();
-          router.reload({ only: ["adoptions"] });
-        },
       }
     );
   };
@@ -446,7 +429,7 @@ export default function ManageIndex() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight flex items-center gap-2">
-                <ClipboardList className="w-7 h-7 sm:w-8 sm:h-8 text-primary" />
+                <ClipboardList className="w-7 h-7 sm:w-8 h-8 text-primary" />
                 Manage Adoption Posts
               </h1>
             </div>
@@ -672,8 +655,6 @@ export default function ManageIndex() {
                           )}
                         </div>
                       )}
-
-                      {/* Optional: show reject_reason in manage page */}
                     </div>
 
                     {/* Actions */}
@@ -693,7 +674,7 @@ export default function ManageIndex() {
                             size="sm"
                             variant="destructive"
                             className="flex-1"
-                            onClick={() => openRejectDialog(post)}
+                            onClick={() => handleReject(post)}
                           >
                             <XCircle className="w-4 h-4 mr-1" />
                             Reject
@@ -992,41 +973,6 @@ export default function ManageIndex() {
               </div>
             </DialogContent>
           </Dialog>
-        )}
-
-        {/* 🔥 Reject Adoption Dialog */}
-        {rejectTarget && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
-            <div className="w-full max-w-md rounded-2xl bg-white dark:bg-gray-900 shadow-2xl max-h-[90vh] overflow-hidden">
-              <div className="px-5 pt-4 pb-3 border-b border-gray-200 dark:border-gray-800">
-                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-50">
-                  Reject Adoption Post
-                </h2>
-                
-              </div>
-
-              <div className="px-5 py-4 space-y-3">
-
-                <div className="px-0 pb-4 pt-2 flex justify-end gap-2 border-t border-gray-200 dark:border-gray-800">
-                  <button
-                    type="button"
-                    onClick={closeRejectDialog}
-                    className="px-4 py-2 rounded-xl border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={submitReject}
-                    disabled={rejectProcessing}
-                    className="px-4 py-2 rounded-xl text-sm font-semibold text-white shadow-sm bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {rejectProcessing ? "Rejecting..." : "Confirm Reject"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
         )}
 
         {/* Delete Adoption Dialog */}

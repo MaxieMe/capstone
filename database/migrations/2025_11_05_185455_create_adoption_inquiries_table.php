@@ -19,13 +19,13 @@ return new class extends Migration
 
                 $table->string('requester_name');
                 $table->string('requester_email');
-                $table->string('requester_phone')->nullable();
+                $table->string('requester_phone');
 
                 // NEW: fields galing sa improved modal
                 $table->dateTime('visit_at');
-                $table->string('meetup_location');
+                $table->string('location');
 
-                $table->text('message')->nullable();
+                $table->text('message');
 
                 $table->string('status', 20)->default('submitted')->index();
 
@@ -52,19 +52,19 @@ return new class extends Migration
                 $table->string('requester_email')->after('requester_name');
             }
             if (!Schema::hasColumn('adoption_inquiries', 'requester_phone')) {
-                $table->string('requester_phone')->nullable()->after('requester_email');
+                $table->string('requester_phone')->after('requester_email');
             }
 
             // dito natin hinahabol yung bagong fields
             if (!Schema::hasColumn('adoption_inquiries', 'visit_at')) {
                 $table->dateTime('visit_at')->after('requester_phone');
             }
-            if (!Schema::hasColumn('adoption_inquiries', 'meetup_location')) {
-                $table->string('meetup_location')->after('visit_at');
+            if (!Schema::hasColumn('adoption_inquiries', 'location')) {
+                $table->string('location')->after('visit_at');
             }
 
             if (!Schema::hasColumn('adoption_inquiries', 'message')) {
-                $table->text('message')->nullable()->after('meetup_location');
+                $table->text('message')->after('location');
             }
             if (!Schema::hasColumn('adoption_inquiries', 'status')) {
                 $table->string('status', 20)->default('submitted')->after('message');

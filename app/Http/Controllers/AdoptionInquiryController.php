@@ -22,10 +22,10 @@ class AdoptionInquiryController extends Controller
         $validated = $request->validate([
             'name'            => ['required', 'string', 'max:120'],
             'email'           => ['required', 'email', 'max:180'],
-            'phone'           => ['nullable', 'string', 'max:60'],
+            'phone'           => ['required', 'string', 'max:60'],
 
             'visit_at'        => ['required', 'date'],
-            'meetup_location' => ['required', 'string', 'max:255'],
+            'location' => ['required', 'string', 'max:255'],
 
             'message'         => ['nullable', 'string', 'max:2000'],
         ]);
@@ -38,7 +38,7 @@ class AdoptionInquiryController extends Controller
             'requester_email' => $validated['email'],
             'requester_phone' => $validated['phone'] ?? null,
             'visit_at'        => $validated['visit_at'],
-            'meetup_location' => $validated['meetup_location'],
+            'location' => $validated['location'],
             'message'         => $validated['message'] ?? null,
             'status'          => 'submitted',
         ]);
@@ -64,7 +64,7 @@ class AdoptionInquiryController extends Controller
                 ($inq->requester_phone ? "Phone: {$inq->requester_phone}\n" : "") .
                 "\nVisit details:\n" .
                 "Date & Time:     {$inq->visit_at}\n" .
-                "Meetup location: {$inq->meetup_location}\n\n" .
+                "Location: {$inq->location}\n\n" .
                 "Message:\n" . ($inq->message ?: 'No additional message.') . "\n\n" .
                 "Please reach out to the requester to proceed.\n",
                 function ($m) use ($owner, $adoption, $inq) {
@@ -98,7 +98,7 @@ class AdoptionInquiryController extends Controller
 
             "Visit details:\n" .
             "- Date & Time:     {$validated['visit_at']}\n" .
-            "- Meetup location: {$validated['meetup_location']}\n\n" .
+            "- Location: {$validated['location']}\n\n" .
 
             "Your message:\n" .
             ($validated['message'] ?? 'No additional message.') . "\n\n" .

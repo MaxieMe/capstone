@@ -17,7 +17,7 @@ class AdoptionInquiry extends Model
         'requester_email',
         'requester_phone',
         'visit_at',
-        'meetup_location',
+        'location',
         'message',
         'status',
     ];

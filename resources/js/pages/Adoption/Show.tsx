@@ -94,7 +94,7 @@ export default function Show({ pet }: { pet: Pet }) {
     email: '',
     phone: '',
     visit_at: '',          // datetime-local (Date of Visitation and Time)
-    meetup_location: '',   // Meet up or location
+    location: '',   // Meet up or location
     message: '',           // optional notes
   });
 
@@ -476,30 +476,31 @@ export default function Show({ pet }: { pet: Pet }) {
 
                 {/* Meet up or location */}
                 <div>
-                  <label className="text-sm">Meet up or Location</label>
+                  <label className="text-sm">Your Location</label>
                   <input
                     className="mt-1 w-full rounded-lg border px-3 py-2"
-                    placeholder="Ex: SM Valenzuela, main entrance"
-                    value={inquiryData.meetup_location}
-                    onChange={(e) => setInquiryData('meetup_location', e.target.value)}
+                    placeholder="Ex: Tanay, San Isidro"
+                    value={inquiryData.location}
+                    onChange={(e) => setInquiryData('location', e.target.value)}
                     required
                   />
-                  {inquiryErrors.meetup_location && (
+                  {inquiryErrors.location && (
                     <div className="text-xs text-rose-600 mt-1">
-                      {inquiryErrors.meetup_location}
+                      {inquiryErrors.location}
                     </div>
                   )}
                 </div>
 
                 {/* Extra notes */}
                 <div>
-                  <label className="text-sm">Message (optional)</label>
+                  <label className="text-sm">Message</label>
                   <textarea
                     className="mt-1 w-full rounded-lg border px-3 py-2"
                     rows={4}
                     placeholder={`Any questions or requirements about meeting ${pet.pname}?`}
                     value={inquiryData.message}
                     onChange={(e) => setInquiryData('message', e.target.value)}
+                    required
                   />
                   {inquiryErrors.message && (
                     <div className="text-xs text-rose-600 mt-1">{inquiryErrors.message}</div>
@@ -531,96 +532,6 @@ export default function Show({ pet }: { pet: Pet }) {
           </div>
         )}
 
-        {/* ===== Modal: Sponsorship Inquiry ===== */}
-        {isSponsorshipOpen && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="w-full max-w-md rounded-2xl bg-white dark:bg-gray-800 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold">Sponsorship Inquiry</h2>
-                <button
-                  onClick={() => setSponsorshipOpen(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  ✕
-                </button>
-              </div>
-              <form onSubmit={handleSponsorshipSubmit} className="space-y-3">
-                <div>
-                  <label className="text-sm">Your Name</label>
-                  <input
-                    className="mt-1 w-full rounded-lg border px-3 py-2"
-                    value={sponsorshipData.name_s}
-                    onChange={(e) => setSponsorshipData('name_s', e.target.value)}
-                    required
-                  />
-                  {sponsorshipErrors.name_s && (
-                    <div className="text-xs text-rose-600 mt-1">
-                      {sponsorshipErrors.name_s}
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <label className="text-sm">Your Email</label>
-                  <input
-                    type="email"
-                    className="mt-1 w-full rounded-lg border px-3 py-2"
-                    value={sponsorshipData.email_s}
-                    onChange={(e) => setSponsorshipData('email_s', e.target.value)}
-                    required
-                  />
-                  {sponsorshipErrors.email_s && (
-                    <div className="text-xs text-rose-600 mt-1">
-                      {sponsorshipErrors.email_s}
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <label className="text-sm">Phone (optional)</label>
-                  <input
-                    className="mt-1 w-full rounded-lg border px-3 py-2"
-                    value={sponsorshipData.phone_s}
-                    onChange={(e) => setSponsorshipData('phone_s', e.target.value)}
-                  />
-                  {sponsorshipErrors.phone_s && (
-                    <div className="text-xs text-rose-600 mt-1">
-                      {sponsorshipErrors.phone_s}
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <label className="text-sm">Message (optional)</label>
-                  <textarea
-                    className="mt-1 w-full rounded-lg border px-3 py-2"
-                    rows={4}
-                    value={sponsorshipData.message_s}
-                    onChange={(e) => setSponsorshipData('message_s', e.target.value)}
-                  />
-                  {sponsorshipErrors.message_s && (
-                    <div className="text-xs text-rose-600 mt-1">
-                      {sponsorshipErrors.message_s}
-                    </div>
-                  )}
-                </div>
-                <div className="pt-2 flex items-center justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSponsorshipOpen(false)}
-                    className="px-3 py-2 rounded-lg border"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    disabled={sponsorshipProcessing}
-                    className="px-4 py-2 rounded-lg bg-violet-600 text-white"
-                  >
-                    {sponsorshipProcessing ? 'Sending…' : 'Send Inquiry'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-
-        )}
         {/* FULL-SCREEN QR VIEW MODAL – same style as Profile/Show */}
 {showSponsorViewModal && sponsor?.qr_url && (
   <div

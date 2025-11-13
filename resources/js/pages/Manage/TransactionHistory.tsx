@@ -27,7 +27,7 @@ type Inquiry = {
   requester_email: string;
   requester_phone?: string | null;
   visit_at?: string | null;
-  meetup_location?: string | null;
+  location?: string | null;
   message?: string | null;
   status: string;
   created_at: string;
@@ -221,7 +221,7 @@ export default function TransactionHistory({ inquiries, filters }: PageProps) {
                         </div>
                         <div className="mt-1">
                           <span className="font-semibold">Location:</span>{" "}
-                          {inq.meetup_location || "—"}
+                          {inq.location || "—"}
                         </div>
                       </div>
                       {inq.message && (

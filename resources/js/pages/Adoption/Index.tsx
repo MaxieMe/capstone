@@ -345,7 +345,6 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
           <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzg4ODgiIHN0cm9rZS13aWR0aD0iMC41Ii8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-30"></div>
           <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <div className="inline-flex items-center gap-2 bg-gradient-to-r from-violet-600 to-purple-600 text-white px-4 py-2 rounded-full text-sm font-semibold mb-6 shadow-lg">
-              <span className="text-xl">👥</span>
               <span>Browse Users with Available Pets</span>
             </div>
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black bg-gradient-to-r from-violet-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
@@ -409,7 +408,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                             <h3 className="text-lg font-bold text-gray-900 dark:text:white">
                               {u.name}
                             </h3>
-                            
+
                           </div>
                           <div className="text-right">
                             <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -441,17 +440,16 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                 guestUsers!.links.length > 0 && (
                   <div className="mt-8 hidden sm:flex justify-center gap-2">
                     {guestUsers!.links.map((link, i) => (
-                      <button
-                        key={i}
-                        disabled={!link.url}
-                        onClick={() => link.url && router.visit(link.url)}
-                        className={`px-4 py-2 rounded-xl font-semibold transition-all ${
-                          link.active
-                            ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-lg scale-105'
-                            : 'bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-                        } disabled:opacity-50 disabled:cursor-not-allowed`}
-                        dangerouslySetInnerHTML={{ __html: link.label }}
-                      />
+                       <Button
+                                      key={i}
+                                      size="sm"
+                                      variant={link.active ? "default" : "outline"}
+                                      disabled={!link.url}
+                                      onClick={() => link.url && router.visit(link.url)}
+                                      className="min-w-[2.5rem]"
+                                    >
+                                      <span dangerouslySetInnerHTML={{ __html: link.label }} />
+                                    </Button>
                     ))}
                   </div>
                 )}

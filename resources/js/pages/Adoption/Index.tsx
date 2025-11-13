@@ -409,9 +409,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                             <h3 className="text-lg font-bold text-gray-900 dark:text:white">
                               {u.name}
                             </h3>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              @{name}
-                            </p>
+                            
                           </div>
                           <div className="text-right">
                             <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -420,12 +418,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                               </span>{' '}
                               available
                             </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">
-                              <span className="font-semibold">
-                                {u.total_posts_count ?? 0}
-                              </span>{' '}
-                              total
-                            </div>
+
                           </div>
                         </div>
 

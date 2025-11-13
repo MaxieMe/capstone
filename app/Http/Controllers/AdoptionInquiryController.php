@@ -20,27 +20,27 @@ class AdoptionInquiryController extends Controller
 
         // Validate incoming form (galing sa React modal mo)
         $validated = $request->validate([
-            'name'            => ['required', 'string', 'max:120'],
-            'email'           => ['required', 'email', 'max:180'],
-            'phone'           => ['required', 'string', 'max:60'],
+            'name' => ['required', 'string', 'max:120'],
+            'email' => ['required', 'email', 'max:180'],
+            'phone' => ['required', 'string', 'max:60'],
 
-            'visit_at'        => ['required', 'date'],
+            'visit_at' => ['required', 'date'],
             'location' => ['required', 'string', 'max:255'],
 
-            'message'         => ['nullable', 'string', 'max:2000'],
+            'message' => ['nullable', 'string', 'max:2000'],
         ]);
 
         // Save inquiry sa DB
         $inq = AdoptionInquiry::create([
-            'adoption_id'     => $adoption->id,
-            'requester_id'    => optional($request->user())->id, // guest = null, ok lang
-            'requester_name'  => $validated['name'],
+            'adoption_id' => $adoption->id,
+            'requester_id' => optional($request->user())->id, // guest = null, ok lang
+            'requester_name' => $validated['name'],
             'requester_email' => $validated['email'],
             'requester_phone' => $validated['phone'] ?? null,
-            'visit_at'        => $validated['visit_at'],
+            'visit_at' => $validated['visit_at'],
             'location' => $validated['location'],
-            'message'         => $validated['message'] ?? null,
-            'status'          => 'submitted',
+            'message' => $validated['message'] ?? null,
+            'status' => 'submitted',
         ]);
 
         // Gawing pending yung pet
@@ -57,7 +57,7 @@ class AdoptionInquiryController extends Controller
         if ($owner && $owner->email) {
             Mail::raw(
                 "Hello {$owner->name},\n\n" .
-                "Someone is interested in adopting your pet \"{$adoption->pname}\".\n\n" .
+                "Someone is interested in adopting your pet \"{$adoption->pet_name}\".\n\n" .
                 "Requester details:\n" .
                 "Name:  {$inq->requester_name}\n" .
                 "Email: {$inq->requester_email}\n" .
@@ -69,8 +69,8 @@ class AdoptionInquiryController extends Controller
                 "Please reach out to the requester to proceed.\n",
                 function ($m) use ($owner, $adoption, $inq) {
                     $m->to($owner->email)
-                      ->subject("Adoption Inquiry: {$adoption->pname}")
-                      ->replyTo($inq->requester_email, $inq->requester_name);
+                        ->subject("Adoption Inquiry: {$adoption->pet_name}")
+                        ->replyTo($inq->requester_email, $inq->requester_name);
                 }
             );
         }
@@ -81,14 +81,14 @@ class AdoptionInquiryController extends Controller
         |--------------------------------------------------------------------------
         */
         $senderEmail = $validated['email'];
-        $senderName  = $validated['name'];
+        $senderName = $validated['name'];
 
         Mail::raw(
             "Hello {$senderName},\n\n" .
-            "We received your adoption inquiry for \"{$adoption->pname}\".\n\n" .
+            "We received your adoption inquiry for \"{$adoption->pet_name}\".\n\n" .
             "Here is a summary of your submission:\n\n" .
             "Pet details:\n" .
-            "- Name: {$adoption->pname}\n" .
+            "- Name: {$adoption->pet_name}\n" .
             "- Category: {$adoption->category}\n" .
             "- Breed: " . ($adoption->breed ?: 'N/A') . "\n\n" .
 
@@ -108,7 +108,7 @@ class AdoptionInquiryController extends Controller
             "--\nPetCare Team\n",
             function ($m) use ($senderEmail, $senderName, $adoption) {
                 $m->to($senderEmail, $senderName)
-                  ->subject("We received your inquiry for {$adoption->pname}");
+                    ->subject("We received your inquiry for {$adoption->pet_name}");
             }
         );
 

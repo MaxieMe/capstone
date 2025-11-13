@@ -1,7 +1,7 @@
 @component('mail::message')
 # New Adoption Inquiry
 
-You received a new inquiry for **{{ $adoption->pname }}**.
+You received a new inquiry for **{{ $adoption->pet_name }}**.
 
 **From:** {{ $fromName }}
 **Email:** {{ $fromEmail }}

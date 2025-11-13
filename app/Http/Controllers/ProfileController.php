@@ -20,7 +20,7 @@ class ProfileController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        if (! $user) {
+        if (!$user) {
             abort(401);
         }
 
@@ -41,7 +41,7 @@ class ProfileController extends Controller
             ->where('name', $name)
             ->firstOrFail();
 
-        $viewer  = $request->user();
+        $viewer = $request->user();
         $isOwner = $viewer && $viewer->id === $profile->id;
         $isAdmin = $viewer && in_array($viewer->role ?? '', ['admin', 'superadmin'], true);
 
@@ -71,34 +71,34 @@ class ProfileController extends Controller
 
         // Transform pets bago ipadala sa frontend
         $pets->transform(function (Adoption $pet) {
-            $ageText   = $this->ageText($pet->age, $pet->age_unit);
+            $ageText = $this->ageText($pet->age, $pet->age_unit);
             $lifeStage = $this->computeLifeStage($pet->category, $pet->age, $pet->age_unit);
-            $gender    = $pet->gender ? strtolower($pet->gender) : null;
+            $gender = $pet->gender ? strtolower($pet->gender) : null;
 
             $imageUrl = $pet->image_path
                 ? asset('storage/' . $pet->image_path)
                 : null;
 
             return (object) [
-                'id'            => $pet->id,
-                'pname'         => $pet->pname,
-                'user'          => $pet->user ? (object) [
-                    'id'   => $pet->user->id,
+                'id' => $pet->id,
+                'pet_name' => $pet->pet_name,
+                'user' => $pet->user ? (object) [
+                    'id' => $pet->user->id,
                     'name' => $pet->user->name,
                 ] : null,
-                'gender'        => $gender,
-                'age'           => $pet->age,
-                'age_unit'      => $pet->age_unit,
-                'category'      => $pet->category,
-                'breed'         => $pet->breed,
-                'color'         => $pet->color,
-                'location'      => $pet->location,
-                'description'   => $pet->description,
-                'status'        => $pet->status,
-                'created_at'    => $pet->created_at?->toISOString(),
-                'image_url'     => $imageUrl,
-                'age_text'      => $ageText,
-                'life_stage'    => $lifeStage,
+                'gender' => $gender,
+                'age' => $pet->age,
+                'age_unit' => $pet->age_unit,
+                'category' => $pet->category,
+                'breed' => $pet->breed,
+                'color' => $pet->color,
+                'location' => $pet->location,
+                'description' => $pet->description,
+                'status' => $pet->status,
+                'created_at' => $pet->created_at?->toISOString(),
+                'image_url' => $imageUrl,
+                'age_text' => $ageText,
+                'life_stage' => $lifeStage,
                 'reject_reason' => $pet->reject_reason,
             ];
         });
@@ -113,21 +113,21 @@ class ProfileController extends Controller
                 : null;
 
             $sponsorData = (object) [
-                'id'            => $sponsor->id,
-                'status'        => $sponsor->status,
+                'id' => $sponsor->id,
+                'status' => $sponsor->status,
                 'reject_reason' => $sponsor->reject_reason,
-                'qr_url'        => $qrUrl,
+                'qr_url' => $qrUrl,
             ];
         }
 
         return Inertia::render('Profile/Show', [
             'profile' => [
-                'id'   => $profile->id,
+                'id' => $profile->id,
                 'name' => $profile->name,
             ],
-            'pets'    => $pets,
+            'pets' => $pets,
             'sponsor' => $sponsorData,
-            'auth'    => [
+            'auth' => [
                 'user' => $viewer,
             ],
         ]);
@@ -143,19 +143,19 @@ class ProfileController extends Controller
     public function update(Request $request)
     {
         $user = $request->user();
-        if (! $user) {
+        if (!$user) {
             abort(401);
         }
 
         $data = $request->validate([
-            'name'  => ['required', 'string', 'max:255'],
+            'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', Rule::unique('users')->ignore($user->id)],
             // kung may iba ka pang fields (address, contact, etc) idagdag dito
         ]);
 
         $user->update(array_merge($data, [
-            'is_approved'   => false,   // balik PENDING
-            'is_rejected'   => false,   // clear REJECTED flag
+            'is_approved' => false,   // balik PENDING
+            'is_rejected' => false,   // clear REJECTED flag
             'reject_reason' => null,    // clear reason
         ]));
 
@@ -169,14 +169,14 @@ class ProfileController extends Controller
     public function resubmitFromPending(Request $request)
     {
         $user = $request->user();
-        if (! $user) {
+        if (!$user) {
             abort(401);
         }
 
         $data = $request->validate([
-            'name'            => ['required', 'string', 'max:255'],
-            'email'           => ['required', 'email', Rule::unique('users')->ignore($user->id)],
-            'password'        => ['required', 'confirmed', 'min:8'],
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', Rule::unique('users')->ignore($user->id)],
+            'password' => ['required', 'confirmed', 'min:8'],
             'barangay_permit' => ['nullable', 'image', 'max:2048'], // 2MB
         ]);
 
@@ -187,8 +187,8 @@ class ProfileController extends Controller
         }
 
         // update basic info
-        $user->name     = $data['name'];
-        $user->email    = $data['email'];
+        $user->name = $data['name'];
+        $user->email = $data['email'];
         $user->password = Hash::make($data['password']);
 
         if (isset($data['barangay_permit'])) {
@@ -196,8 +196,8 @@ class ProfileController extends Controller
         }
 
         // RESET STATUS: back to pending
-        $user->is_approved   = false;
-        $user->is_rejected   = false;
+        $user->is_approved = false;
+        $user->is_rejected = false;
         $user->reject_reason = null;
 
         $user->save();
@@ -224,35 +224,45 @@ class ProfileController extends Controller
         }
 
         $singular = ($unit === 'months') ? 'month' : 'year';
-        $label    = $age === 1 ? $singular : $singular . 's';
+        $label = $age === 1 ? $singular : $singular . 's';
 
         return "{$age} {$label}";
     }
 
     private function computeLifeStage(?string $category, ?int $age, ?string $unit): ?string
     {
-        if (! $category || $age === null) {
+        if (!$category || $age === null) {
             return null;
         }
 
         $months = ($unit === 'months') ? $age : $age * 12;
-        $type   = strtolower($category);
+        $type = strtolower($category);
 
         if ($type === 'dog') {
-            if ($months < 6)   return 'Puppy';
-            if ($months < 9)   return 'Junior';
-            if ($months < 78)  return 'Adult';
-            if ($months < 117) return 'Mature';
-            if ($months < 156) return 'Senior';
+            if ($months < 6)
+                return 'Puppy';
+            if ($months < 9)
+                return 'Junior';
+            if ($months < 78)
+                return 'Adult';
+            if ($months < 117)
+                return 'Mature';
+            if ($months < 156)
+                return 'Senior';
             return 'Geriatric';
         }
 
         if ($type === 'cat') {
-            if ($months < 6)   return 'Kitten';
-            if ($months < 24)  return 'Junior';
-            if ($months < 72)  return 'Prime';
-            if ($months < 120) return 'Mature';
-            if ($months < 168) return 'Senior';
+            if ($months < 6)
+                return 'Kitten';
+            if ($months < 24)
+                return 'Junior';
+            if ($months < 72)
+                return 'Prime';
+            if ($months < 120)
+                return 'Mature';
+            if ($months < 168)
+                return 'Senior';
             return 'Geriatric';
         }
 

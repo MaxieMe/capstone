@@ -21,16 +21,19 @@ class ManageController extends Controller
             ->with('user');
 
         // 🔹 filter by category (dog/cat)
-        if ($request->filled('category') && in_array($request->category, ['dog', 'cat'], true)) {
+        if (
+            $request->filled('category') &&
+            in_array($request->category, ['dog', 'cat'], true)
+        ) {
             $query->where('category', $request->string('category'));
         }
 
-        // existing status filter
+        // 🔹 filter by status
         if ($request->filled('status')) {
             $query->where('status', $request->string('status'));
         }
 
-        // existing search...
+        // 🔹 search
         if ($request->filled('q')) {
             $q = $request->string('q');
             $query->where(function ($sub) use ($q) {
@@ -40,7 +43,7 @@ class ManageController extends Controller
             });
         }
 
-        // yung custom order mo gamit CASE dito pa rin
+        // 🔹 custom order: status → name A–Z → newest
         $query
             ->orderByRaw("
                 CASE status
@@ -52,7 +55,7 @@ class ManageController extends Controller
                     ELSE 99
                 END
             ")
-            ->orderByRaw("LOWER(pet_name) ASC")
+            ->orderByRaw('LOWER(pet_name) ASC')
             ->orderByDesc('created_at');
 
         $adoptions = $query->paginate(9)->withQueryString();
@@ -60,8 +63,8 @@ class ManageController extends Controller
         return Inertia::render('Manage/Index', [
             'adoptions' => $adoptions,
             'filters' => [
-                'q' => $request->input('q'),
-                'status' => $request->input('status'),
+                'q'        => $request->input('q'),
+                'status'   => $request->input('status'),
                 'category' => $request->input('category'),
             ],
         ]);

@@ -262,7 +262,7 @@ export default function ManageIndex() {
         return base;
     }, [adoptions.data]);
 
-    /* ===================== Filters ===================== */
+    /* ===================== Filters (frontend state + backend sync) ===================== */
 
     const [statusFilter, setStatusFilter] = useState<StatusFilter>(
         (filters?.status as StatusFilter) || 'all',
@@ -500,10 +500,14 @@ export default function ManageIndex() {
                             </span>
 
                             {[
-                                { label: 'All', value: 'all' as StatusFilter },
+                                {
+                                    label: 'All',
+                                    value: 'all' as StatusFilter,
+                                },
                                 {
                                     label: 'Waiting',
-                                    value: 'waiting_for_approval' as StatusFilter,
+                                    value:
+                                        'waiting_for_approval' as StatusFilter,
                                 },
                                 {
                                     label: 'Available',

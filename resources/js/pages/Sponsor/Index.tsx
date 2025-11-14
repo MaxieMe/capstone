@@ -1,6 +1,5 @@
-// resources/js/Pages/Sponsor/Index.tsx
-import React, { useMemo, useState } from "react";
-import { Head, router, Link, useForm } from "@inertiajs/react";
+import React, { useState } from "react";
+import { Head, router, Link, useForm, usePage } from "@inertiajs/react";
 import AppLayout from "@/layouts/app-layout";
 import { route } from "ziggy-js";
 import type { BreadcrumbItem } from "@/types";
@@ -33,7 +32,7 @@ type PaginatedSponsors = {
 };
 
 type PageProps = {
-  sponsors?: Sponsor[] | PaginatedSponsors;
+  sponsors: PaginatedSponsors;
   filters?: {
     status?: string | null;
   };
@@ -65,7 +64,10 @@ const statusColor: Record<SponsorStatus, string> = {
     "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
 };
 
-export default function SponsorIndex({ sponsors, filters, auth }: PageProps) {
+type StatusFilter = "all" | SponsorStatus;
+
+export default function SponsorIndex(props: PageProps) {
+  const { sponsors, filters, auth } = props;
   const viewer = auth?.user ?? null;
 
   const role: Role =
@@ -79,35 +81,22 @@ export default function SponsorIndex({ sponsors, filters, auth }: PageProps) {
   const { confirm } = useConfirmDialog();
 
   // Normalize sponsors + pagination
-  const sponsorList: Sponsor[] = Array.isArray(sponsors)
-    ? sponsors
-    : sponsors?.data ?? [];
+  const sponsorList: Sponsor[] = sponsors?.data ?? [];
+  const paginationLinks: PaginationLink[] = sponsors?.links ?? [];
 
-  const paginationLinks: PaginationLink[] = Array.isArray(sponsors)
-    ? []
-    : sponsors?.links ?? [];
+  // active status comes from backend filters (like manage posts/users)
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(
+    filters?.status === "waiting_for_approval" ||
+      filters?.status === "approved" ||
+      filters?.status === "rejected"
+      ? (filters.status as SponsorStatus)
+      : "all"
+  );
 
-  const prevLink =
-    paginationLinks.length > 0 ? paginationLinks[0] : null;
-  const nextLink =
-    paginationLinks.length > 0
-      ? paginationLinks[paginationLinks.length - 1]
-      : null;
-
-  const [activeStatus, setActiveStatus] = useState<
-    "All" | "waiting_for_approval" | "approved" | "rejected"
-  >((filters?.status as any) || "All");
-
-  const filteredSponsors = useMemo(() => {
-    return sponsorList.filter((s) =>
-      activeStatus === "All" ? true : s.status === activeStatus
-    );
-  }, [sponsorList, activeStatus]);
-
-  const applyStatusFilter = (status: typeof activeStatus) => {
-    setActiveStatus(status);
+  const applyStatusFilter = (status: StatusFilter) => {
+    setStatusFilter(status);
     const query: Record<string, string> = {};
-    if (status !== "All") query.status = status;
+    if (status !== "all") query.status = status;
     router.get(route("sponsor.index"), query, {
       preserveScroll: true,
       preserveState: true,
@@ -251,8 +240,6 @@ export default function SponsorIndex({ sponsors, filters, auth }: PageProps) {
     <AppLayout breadcrumbs={breadcrumbs}>
       <Head title="Sponsor QR Approvals" />
 
-      {/* Global FlashToast na sa layout */}
-
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
@@ -269,27 +256,27 @@ export default function SponsorIndex({ sponsors, filters, auth }: PageProps) {
           </div>
         </div>
 
-        {/* Filter buttons */}
+        {/* Status filter – same style logic as manage posts/users */}
         <div className="mb-6 flex flex-wrap gap-2">
           {[
-            { label: "All", value: "All" as const },
+            { label: "All", value: "all" as StatusFilter },
             {
               label: "Waiting",
-              value: "waiting_for_approval" as const,
+              value: "waiting_for_approval" as StatusFilter,
             },
-            { label: "Approved", value: "approved" as const },
-            { label: "Rejected", value: "rejected" as const },
+            { label: "Approved", value: "approved" as StatusFilter },
+            { label: "Rejected", value: "rejected" as StatusFilter },
           ].map((f) => {
-            const active = activeStatus === f.value;
+            const active = statusFilter === f.value;
             return (
               <button
                 key={f.value}
                 type="button"
                 onClick={() => applyStatusFilter(f.value)}
-                className={`px-3 sm:px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold border transition-all ${
+                className={`rounded-full border px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-semibold transition-all ${
                   active
-                    ? "bg-violet-600 text-white border-violet-600 shadow-sm"
-                    : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700"
+                    ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                    : "border-border bg-background text-foreground hover:bg-muted"
                 }`}
               >
                 {f.label}
@@ -299,10 +286,10 @@ export default function SponsorIndex({ sponsors, filters, auth }: PageProps) {
         </div>
 
         {/* GRID CARDS */}
-        {filteredSponsors.length ? (
+        {sponsorList.length ? (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-              {filteredSponsors.map((s) => {
+              {sponsorList.map((s) => {
                 const canApproveReject =
                   s.status === "waiting_for_approval" &&
                   (isAdmin || isSuperadmin);
@@ -365,8 +352,8 @@ export default function SponsorIndex({ sponsors, filters, auth }: PageProps) {
                               <span className="text-2xl">💳</span>
                             </div>
                             <p className="text-center max-w-xs">
-                              No QR image uploaded yet. Ask the user to upload one
-                              on their sponsor page.
+                              No QR image uploaded yet. Ask the user to upload
+                              one on their sponsor page.
                             </p>
                           </div>
                         )}
@@ -476,53 +463,23 @@ export default function SponsorIndex({ sponsors, filters, auth }: PageProps) {
               })}
             </div>
 
-            {/* Pagination for sponsors */}
+            {/* Pagination – same style as manage posts/users */}
             {paginationLinks.length > 0 && (
-              <div className="mt-6">
-                {/* Mobile: Previous / Next */}
-                <div className="flex justify-between gap-3 sm:hidden">
-                  <button
-                    disabled={!prevLink?.url}
-                    onClick={() =>
-                      prevLink?.url && router.visit(prevLink.url)
-                    }
-                    className="flex-1 rounded-xl border-2 border-gray-300 bg-white px-4 py-3 text-xs font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+              <div className="mt-6 flex flex-wrap justify-center gap-2">
+                {paginationLinks.map((link, i) => (
+                  <Button
+                    key={i}
+                    size="sm"
+                    variant={link.active ? "default" : "outline"}
+                    disabled={!link.url}
+                    onClick={() => link.url && router.visit(link.url)}
+                    className="min-w-[2.5rem]"
                   >
-                    ← Previous
-                  </button>
-                  <button
-                    disabled={!nextLink?.url}
-                    onClick={() =>
-                      nextLink?.url && router.visit(nextLink.url)
-                    }
-                    className="flex-1 rounded-xl border-2 border-gray-300 bg-white px-4 py-3 text-xs font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                  >
-                    Next →
-                  </button>
-                </div>
-
-                {/* Desktop: numbered buttons */}
-                <div className="hidden sm:flex flex-wrap justify-center gap-2">
-                  {paginationLinks.map((link, i) => (
-                    <Button
-                      key={i}
-                      size="sm"
-                      variant={link.active ? "default" : "outline"}
-                      disabled={!link.url}
-                      onClick={() => link.url && router.visit(link.url)}
-                      className={
-                        "min-w-[2.5rem] " +
-                        (link.active
-                          ? "bg-black text-white hover:bg-black"
-                          : "text-black dark:text-white")
-                      }
-                    >
-                      <span
-                        dangerouslySetInnerHTML={{ __html: link.label }}
-                      />
-                    </Button>
-                  ))}
-                </div>
+                    <span
+                      dangerouslySetInnerHTML={{ __html: link.label }}
+                    />
+                  </Button>
+                ))}
               </div>
             )}
           </>
@@ -539,7 +496,7 @@ export default function SponsorIndex({ sponsors, filters, auth }: PageProps) {
           <div className="w-full max-w-md rounded-2xl bg-white dark:bg-gray-900 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-bold text-gray-900 dark:text:white dark:text-white">
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white">
                   Edit Sponsor QR
                 </h2>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">

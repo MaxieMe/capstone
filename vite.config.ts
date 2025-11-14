@@ -21,6 +21,9 @@ export default defineConfig({
             formVariants: true,
         }),
     ],
+    build: {
+        outDir: 'public/build',
+    },
     esbuild: {
         jsx: 'automatic',
     },

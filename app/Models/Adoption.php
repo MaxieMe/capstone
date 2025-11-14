@@ -14,7 +14,7 @@ class Adoption extends Model
 
     protected $fillable = [
         'user_id',
-        'pname',
+        'pet_name',
         'gender',
         'age',
         'age_unit',
@@ -28,8 +28,22 @@ class Adoption extends Model
         'is_approved',
     ];
 
+    public function setPetNameAttribute($value)
+    {
+        $this->attributes['pet_name'] = ucfirst($value);
+    }
+
+    public function setLocationAttribute($value)
+    {
+        $this->attributes['location'] = ucfirst($value);
+    }
+
+    public function setDescriptionAttribute($value)
+    {
+        $this->attributes['description'] = ucfirst($value);
+    }
     protected $casts = [
-        'age'         => 'integer',
+        'age' => 'integer',
         'is_approved' => 'boolean',
     ];
 
@@ -59,7 +73,7 @@ class Adoption extends Model
     public function scopeAvailable($query)
     {
         return $query->where('status', 'available')
-                     ->where('is_approved', true);
+            ->where('is_approved', true);
     }
 
     /* ---------------- Accessors ---------------- */

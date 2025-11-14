@@ -36,6 +36,7 @@ Route::post('/adoption/{adoption}/inquire', [AdoptionInquiryController::class, '
     ->name('adoption.inquire')
     ->middleware('throttle:5,1');
 
+
 /*
 |--------------------------------------------------------------------------
 | Public profile view

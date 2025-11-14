@@ -18,10 +18,10 @@ class DashboardController extends Controller
         $totals = [
             'adoptions' => Adoption::count(),
             'available' => Adoption::where('status', 'available')->count(),
-            'pending'   => Adoption::where('status', 'pending')->count(),
-            'adopted'   => Adoption::where('status', 'adopted')->count(),
+            'pending' => Adoption::where('status', 'pending')->count(),
+            'adopted' => Adoption::where('status', 'adopted')->count(),
             // ✅ add this so your UI can show totals.users
-            'users'     => User::count(),
+            'users' => User::count(),
         ];
 
         // (optional) lightweight metric you can still return; UI may ignore it
@@ -47,7 +47,7 @@ class DashboardController extends Controller
 
         /* ===================== Recent adoptions (latest 8) ===================== */
         $recentAdoptions = Adoption::query()
-            ->select('id', 'pname', 'status', 'created_at', 'user_id', 'image_path')
+            ->select('id', 'pet_name', 'status', 'created_at', 'user_id', 'image_path')
             ->with(['user:id,name'])
             ->latest()
             ->limit(3)
@@ -89,20 +89,20 @@ class DashboardController extends Controller
         for ($i = 0; $i < 7; $i++) {
             $d = $since->copy()->addDays($i)->toDateString();
             $trend7d[] = [
-                'date'  => $d,
-                'count' => (int)($trendRows[$d]->c ?? 0),
+                'date' => $d,
+                'count' => (int) ($trendRows[$d]->c ?? 0),
             ];
         }
 
         /* ===================== 12-month trend (per month totals) ===================== */
         $trend12m = [];
         $start = Carbon::now()->startOfMonth()->subMonths(11);
-        $end   = Carbon::now()->endOfMonth();
+        $end = Carbon::now()->endOfMonth();
 
         $cursor = $start->copy();
         while ($cursor->lessThanOrEqualTo($end)) {
             $monthStart = $cursor->copy()->startOfMonth();
-            $monthEnd   = $cursor->copy()->endOfMonth();
+            $monthEnd = $cursor->copy()->endOfMonth();
 
             $count = Adoption::whereBetween('created_at', [$monthStart, $monthEnd])->count();
 
@@ -119,7 +119,7 @@ class DashboardController extends Controller
         $cursor = $start->copy();
         while ($cursor->lessThanOrEqualTo($end)) {
             $monthStart = $cursor->copy()->startOfMonth();
-            $monthEnd   = $cursor->copy()->endOfMonth();
+            $monthEnd = $cursor->copy()->endOfMonth();
 
             $cats = Adoption::where('category', 'cat')
                 ->whereBetween('created_at', [$monthStart, $monthEnd])->count();
@@ -128,27 +128,27 @@ class DashboardController extends Controller
 
             $trendByCategory[] = [
                 'label' => $cursor->format('M Y'),
-                'cat'   => (int) $cats,
-                'dog'   => (int) $dogs,
+                'cat' => (int) $cats,
+                'dog' => (int) $dogs,
             ];
 
             $cursor->addMonth();
         }
 
         return Inertia::render('dashboard', [
-    'auth'           => [
-        'user' => $request->user(),
-    ],
-    'totals'          => $totals,
-    'byCategory'      => $byCategory,
-    'topBreeds'       => $topBreeds,
-    'withImage'       => $withImage,
-    'recentAdoptions' => $recentAdoptions,
-    'pendingUsers'    => $pendingUsers,
-    'trend7d'         => $trend7d,
-    'trend12m'        => $trend12m,
-    'trendByCategory' => $trendByCategory,
-]);
+            'auth' => [
+                'user' => $request->user(),
+            ],
+            'totals' => $totals,
+            'byCategory' => $byCategory,
+            'topBreeds' => $topBreeds,
+            'withImage' => $withImage,
+            'recentAdoptions' => $recentAdoptions,
+            'pendingUsers' => $pendingUsers,
+            'trend7d' => $trend7d,
+            'trend12m' => $trend12m,
+            'trendByCategory' => $trendByCategory,
+        ]);
     }
 }
 

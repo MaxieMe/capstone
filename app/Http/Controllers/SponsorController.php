@@ -14,37 +14,52 @@ class SponsorController extends Controller
      * Route: GET /sponsors  -> sponsor.index
      */
     public function index(Request $request)
-    {
-        $status = $request->query('status');
+{
+    $status = $request->query('status');
 
-        $sponsors = Sponsor::query()
-            ->with(['user:id,name'])
-            ->when($status, function ($q) use ($status) {
-                $q->where('status', $status);
-            })
-            ->orderByDesc('created_at')
-            ->get()
-            ->map(function (Sponsor $s) {
-                return (object)[
-                    'id'            => $s->id,
-                    'status'        => $s->status,
-                    'reject_reason' => $s->reject_reason,
-                    'created_at'    => $s->created_at?->toISOString(),
-                    'qr_url'        => $s->qr_path ? asset('storage/'.$s->qr_path) : null,
-                    'user'          => $s->user ? (object)[
-                        'id'   => $s->user->id,
-                        'name' => $s->user->name,
-                    ] : null,
-                ];
-            });
+    $sponsors = Sponsor::query()
+        // join sa users para makapag-order by users.name
+        ->leftJoin('users', 'sponsors.user_id', '=', 'users.id')
+        ->select('sponsors.*') // importante, para Sponsor model pa rin
+        ->with(['user:id,name'])
+        ->when($status, function ($q) use ($status) {
+            $q->where('sponsors.status', $status);
+        })
+        ->orderByRaw("
+            CASE sponsors.status
+                WHEN 'waiting_for_approval' THEN 1
+                WHEN 'approved'             THEN 2
+                WHEN 'rejected'             THEN 3
+                ELSE 99
+            END
+        ")
+        // A–Z by user name (COALESCE para sa null names)
+        ->orderByRaw('LOWER(COALESCE(users.name, "")) ASC')
+        ->paginate(9)
+        ->withQueryString()
+        ->through(function (Sponsor $s) {
+            return (object)[
+                'id'            => $s->id,
+                'status'        => $s->status,
+                'reject_reason' => $s->reject_reason,
+                'created_at'    => $s->created_at?->toISOString(),
+                'qr_url'        => $s->qr_path ? asset('storage/'.$s->qr_path) : null,
+                'user'          => $s->user ? (object)[
+                    'id'   => $s->user->id,
+                    'name' => $s->user->name,
+                ] : null,
+            ];
+        });
 
-        return Inertia::render('Sponsor/Index', [
-            'sponsors' => $sponsors,
-            'filters'  => [
-                'status' => $status,
-            ],
-        ]);
-    }
+    return Inertia::render('Sponsor/Index', [
+        'sponsors' => $sponsors,
+        'filters'  => [
+            'status' => $status,
+        ],
+    ]);
+}
+
+
 
     /**
      * Owner: upload o re-upload ng sponsor QR mula sa profile page.

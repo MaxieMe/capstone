@@ -21,26 +21,29 @@ class ManageController extends Controller
             ->with('user');
 
         // 🔹 filter by category (dog/cat)
-        if ($request->filled('category') && in_array($request->category, ['dog', 'cat'], true)) {
+        if (
+            $request->filled('category') &&
+            in_array($request->category, ['dog', 'cat'], true)
+        ) {
             $query->where('category', $request->string('category'));
         }
 
-        // existing status filter
+        // 🔹 filter by status
         if ($request->filled('status')) {
             $query->where('status', $request->string('status'));
         }
 
-        // existing search...
+        // 🔹 search
         if ($request->filled('q')) {
             $q = $request->string('q');
             $query->where(function ($sub) use ($q) {
-                $sub->where('pname', 'like', "%{$q}%")
+                $sub->where('pet_name', 'like', "%{$q}%")
                     ->orWhere('breed', 'like', "%{$q}%")
                     ->orWhere('location', 'like', "%{$q}%");
             });
         }
 
-        // yung custom order mo gamit CASE dito pa rin
+        // 🔹 custom order: status → name A–Z → newest
         $query
             ->orderByRaw("
                 CASE status
@@ -52,14 +55,14 @@ class ManageController extends Controller
                     ELSE 99
                 END
             ")
-            ->orderByRaw("LOWER(pname) ASC")
+            ->orderByRaw('LOWER(pet_name) ASC')
             ->orderByDesc('created_at');
 
         $adoptions = $query->paginate(9)->withQueryString();
 
         return Inertia::render('Manage/Index', [
             'adoptions' => $adoptions,
-            'filters'   => [
+            'filters' => [
                 'q'        => $request->input('q'),
                 'status'   => $request->input('status'),
                 'category' => $request->input('category'),
@@ -74,7 +77,7 @@ class ManageController extends Controller
     {
         // from waiting_for_approval → available
         $adoption->update([
-            'status'        => 'available',
+            'status' => 'available',
             'reject_reason' => null,
         ]);
 
@@ -91,7 +94,7 @@ class ManageController extends Controller
         ]);
 
         $adoption->update([
-            'status'        => 'rejected',
+            'status' => 'rejected',
             'reject_reason' => $data['reject_reason'] ?? '',
         ]);
 
@@ -106,16 +109,16 @@ class ManageController extends Controller
     public function update(Request $request, Adoption $adoption)
     {
         $data = $request->validate([
-            'pname'       => ['required', 'string', 'max:255'],
-            'gender'      => ['required', 'in:male,female'],
-            'age'         => ['required', 'integer', 'min:1'],
-            'age_unit'    => ['required', 'in:months,years'],
-            'category'    => ['required', 'in:cat,dog'],
-            'breed'       => ['nullable', 'string', 'max:255'],
-            'color'       => ['nullable', 'string', 'max:255'],
-            'location'    => ['nullable', 'string', 'max:255'],
+            'pet_name' => ['required', 'string', 'max:255'],
+            'gender' => ['required', 'in:male,female'],
+            'age' => ['required', 'integer', 'min:1'],
+            'age_unit' => ['required', 'in:months,years'],
+            'category' => ['required', 'in:cat,dog'],
+            'breed' => ['nullable', 'string', 'max:255'],
+            'color' => ['nullable', 'string', 'max:255'],
+            'location' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'image'       => ['nullable', 'image', 'max:2048'], // 🔥 new
+            'image' => ['nullable', 'image', 'max:2048'], // 🔥 new
         ]);
 
         // 🔥 Handle optional new image
@@ -129,7 +132,7 @@ class ManageController extends Controller
 
             // columns: image_path + image_url
             $data['image_path'] = $path;
-            $data['image_url']  = Storage::disk('public')->url($path);
+            $data['image_url'] = Storage::disk('public')->url($path);
             // or: $data['image_url'] = Storage::url($path);
         }
 
@@ -176,7 +179,7 @@ class ManageController extends Controller
                 $sub->where('requester_name', 'like', "%{$q}%")
                     ->orWhere('requester_email', 'like', "%{$q}%")
                     ->orWhereHas('adoption', function ($sub2) use ($q) {
-                        $sub2->where('pname', 'like', "%{$q}%");
+                        $sub2->where('pet_name', 'like', "%{$q}%");
                     });
             });
         }
@@ -185,8 +188,8 @@ class ManageController extends Controller
 
         return Inertia::render('Manage/TransactionHistory', [
             'inquiries' => $inquiries,
-            'filters'   => [
-                'q'      => $request->input('q'),
+            'filters' => [
+                'q' => $request->input('q'),
                 'status' => $request->input('status'),
             ],
         ]);

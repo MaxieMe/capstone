@@ -15,11 +15,12 @@ class AdoptionInquiryConfirmationMail extends Mailable implements ShouldQueue
     public function __construct(
         public Adoption $adoption,
         public array $data
-    ) {}
+    ) {
+    }
 
     public function build()
     {
-        return $this->subject("We received your inquiry for {$this->adoption->pname}")
+        return $this->subject("We received your inquiry for {$this->adoption->pet_name}")
             ->text('emails.adoption_inquiry_confirmation_plain');
     }
 }

@@ -14,25 +14,47 @@ class RoleController extends Controller
     /**
      * Show all users with pending ones first + pagination.
      */
-    public function admin(Request $request)
-    {
-        $users = User::orderByRaw('CASE
+    // app/Http/Controllers/RoleController.php
+
+public function admin(Request $request)
+{
+    $status = $request->input('status'); // pending | approved | rejected | null
+
+    $query = User::query();
+
+    // Backend filter by status (para hindi lang current page)
+    if ($status === 'pending') {
+        $query->where('is_approved', false)
+              ->where('is_rejected', false);
+    } elseif ($status === 'approved') {
+        $query->where('is_approved', true);
+    } elseif ($status === 'rejected') {
+        $query->where('is_rejected', true);
+    }
+
+    // Sort: Pending -> Approved -> Rejected, tapos A–Z by name
+    $users = $query
+        ->orderByRaw('CASE
                 WHEN is_approved = 0 AND is_rejected = 0 THEN 0   -- pending
                 WHEN is_approved = 1 THEN 1                      -- approved
                 WHEN is_rejected = 1 THEN 2                      -- rejected
                 ELSE 3
             END')
-            ->orderBy('name', 'asc')
-            ->paginate(9)
-            ->withQueryString();
+        ->orderBy('name', 'asc')
+        ->paginate(9)
+        ->withQueryString();
 
-        return Inertia::render('Manage/Users', [
-            'users' => $users,
-            'auth'  => [
-                'user' => Auth::user(),
-            ],
-        ]);
-    }
+    return Inertia::render('Manage/Users', [
+        'users' => $users,
+        'filters' => [
+            'status' => $status,
+        ],
+        'auth'  => [
+            'user' => Auth::user(),
+        ],
+    ]);
+}
+
 
     /**
      * Approve a user (Admin or Superadmin only).

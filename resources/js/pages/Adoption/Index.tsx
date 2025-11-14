@@ -174,6 +174,9 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
     const isOwner = (pet: Pet) =>
         !!currentUserId && pet.user?.id === currentUserId;
 
+    const canShowEdit = (pet: Pet) =>
+    isOwner(pet) && pet.status === 'rejected';
+
     const openCreateModal = () => {
         setEditingPet(null);
         reset();
@@ -1017,41 +1020,48 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                                     </div>
 
                                     {/* Second row: Owner actions */}
-                                    {isOwner(pet) && (
-                                        <div className="mt-3 flex flex-wrap gap-2">
-                                            {pet.status === 'pending' ? (
-                                                <>
-                                                    <button
-                                                        onClick={() => handleCancelPending(pet)}
-                                                        className="min-w-[90px] flex-1 rounded-xl border-2 border-amber-500 py-2 text-center text-sm font-semibold text-amber-600 transition-all hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-900/30"
-                                                    >
-                                                        Cancel
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleConfirmPending(pet)}
-                                                        className="min-w-[90px] flex-1 rounded-xl border-2 border-emerald-500 py-2 text-center text-sm font-semibold text-emerald-600 transition-all hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-900/30"
-                                                    >
-                                                        Confirm
-                                                    </button>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <button
-                                                        onClick={() => openEditModal(pet)}
-                                                        className="min-w-[90px] flex-1 rounded-xl border-2 border-blue-500 py-2 text-center text-sm font-semibold text-blue-600 transition-all hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-900/30"
-                                                    >
-                                                        Edit
-                                                    </button>
-                                                    <button
-                                                        onClick={() => openDeleteDialog(pet)}
-                                                        className="min-w-[90px] flex-1 rounded-xl border-2 border-rose-500 py-2 text-center text-sm font-semibold text-rose-600 transition-all hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-900/30"
-                                                    >
-                                                        Delete
-                                                    </button>
-                                                </>
-                                            )}
-                                        </div>
-                                    )}
+{isOwner(pet) && (
+    <div className="mt-3 flex flex-wrap gap-2">
+        {pet.status === 'pending' ? (
+            <>
+                {/* ✅ Pending → Cancel + Confirm */}
+                <button
+                    onClick={() => handleCancelPending(pet)}
+                    className="min-w-[90px] flex-1 rounded-xl border-2 border-amber-500 py-2 text-center text-sm font-semibold text-amber-600 transition-all hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-900/30"
+                >
+                    Cancel
+                </button>
+                <button
+                    onClick={() => handleConfirmPending(pet)}
+                    className="min-w-[90px] flex-1 rounded-xl border-2 border-emerald-500 py-2 text-center text-sm font-semibold text-emerald-600 transition-all hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-900/30"
+                >
+                    Confirm
+                </button>
+            </>
+        ) : (
+            <>
+                {/* ✅ Rejected lang ang may Edit */}
+                {canShowEdit(pet) && (
+                    <button
+                        onClick={() => openEditModal(pet)}
+                        className="min-w-[90px] flex-1 rounded-xl border-2 border-blue-500 py-2 text-center text-sm font-semibold text-blue-600 transition-all hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-900/30"
+                    >
+                        Edit
+                    </button>
+                )}
+
+                {/* ✅ Lahat ng non-pending → may Delete (waiting_for_approval, available, adopted, rejected) */}
+                <button
+                    onClick={() => openDeleteDialog(pet)}
+                    className="min-w-[90px] flex-1 rounded-xl border-2 border-rose-500 py-2 text-center text-sm font-semibold text-rose-600 transition-all hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-900/30"
+                >
+                    Delete
+                </button>
+            </>
+        )}
+    </div>
+)}
+
                                 </div>
                             </div>
                         ))}

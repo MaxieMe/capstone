@@ -1,40 +1,63 @@
-# 1. BUILD STAGE
-FROM php:8.3-apache AS build
+# # 1. BUILD STAGE
+# FROM php:8.3-apache AS build
 
-RUN apt-get update && apt-get install -y \
-    git libzip-dev unzip nodejs npm libpng-dev libjpeg-dev libfreetype6-dev zlib1g-dev libonig-dev
+# RUN apt-get update && apt-get install -y \
+#     git libzip-dev unzip nodejs npm libpng-dev libjpeg-dev libfreetype6-dev zlib1g-dev libonig-dev
 
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+# COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-WORKDIR /var/www/html
-COPY . .
+# WORKDIR /var/www/html
+# COPY . .
 
-RUN composer install --no-dev --prefer-dist --ignore-platform-reqs
-RUN docker-php-ext-install pdo pdo_mysql zip opcache exif bcmath pcntl mbstring \
-    && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install -j$(nproc) gd
+# RUN composer install --no-dev --prefer-dist --ignore-platform-reqs
+# RUN docker-php-ext-install pdo pdo_mysql zip opcache exif bcmath pcntl mbstring \
+#     && docker-php-ext-configure gd --with-freetype --with-jpeg \
+#     && docker-php-ext-install -j$(nproc) gd
 
-# 2. FINAL STAGE
-FROM php:8.3-apache AS final
+# # 2. FINAL STAGE
+# FROM php:8.3-apache AS final
 
-RUN apt-get update && apt-get install -y nodejs npm
+# RUN apt-get update && apt-get install -y nodejs npm
 
-WORKDIR /var/www/html
-COPY --from=build /var/www/html /var/www/html
-COPY --from=build /usr/bin/composer /usr/bin/composer
+# WORKDIR /var/www/html
+# COPY --from=build /var/www/html /var/www/html
+# COPY --from=build /usr/bin/composer /usr/bin/composer
 
-RUN npm install && npm run build
+# RUN npm install && npm run build
 
-RUN chown -R www-data:www-data /var/www/html \
-    && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+# RUN chown -R www-data:www-data /var/www/html \
+#     && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
-RUN a2enmod rewrite
-COPY 000-default.conf /etc/apache2/sites-available/000-default.conf
-RUN a2ensite 000-default.conf
+# RUN a2enmod rewrite
+# COPY 000-default.conf /etc/apache2/sites-available/000-default.conf
+# RUN a2ensite 000-default.conf
 
-COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+# COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+# RUN chmod +x /usr/local/bin/entrypoint.sh
 
-EXPOSE 80
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-CMD ["apache2-foreground"]
+# EXPOSE 80
+# ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+# CMD ["apache2-foreground"]
+
+
+FROM php:8.3.10
+
+RUN apt-get update -y && apt-get install -y openssl zip unzip git 
+
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+
+RUN apt-get update && apt-get install -y libpq-dev
+
+RUN docker-php-ext-install pdo pdo_pgsql
+
+RUN php -m | grep mbstring
+
+WORKDIR /app
+
+COPY . /app
+
+RUN composer install 
+
+CMD php artisan serve --host=0.0.0.0 --port=8000
+
+EXPOSE 8000

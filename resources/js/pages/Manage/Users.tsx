@@ -1,5 +1,5 @@
 // resources/js/Pages/Manage/Users.tsx
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import AppLayout from "@/layouts/app-layout";
 import { Head, usePage, router, useForm } from "@inertiajs/react";
 import { Button } from "@/components/ui/button";
@@ -48,11 +48,19 @@ interface User {
 interface Paginated<T> {
   data: T[];
   links: { url: string | null; label: string; active: boolean }[];
+  // Laravel paginator may have more fields (total, etc.) pero optional dito
+}
+
+interface FiltersProp {
+  status?: string | null;
 }
 
 export default function Users() {
-  const { auth, users } = usePage<{ auth: { user: User }; users: Paginated<User> }>()
-    .props;
+  const { auth, users, filters } = usePage<{
+    auth: { user: User };
+    users: Paginated<User>;
+    filters?: FiltersProp;
+  }>().props;
 
   const [editingUser, setEditingUser] = useState<User | null>(null);
 
@@ -94,32 +102,27 @@ export default function Users() {
     return "pending";
   };
 
-  /* ===================== Filters ===================== */
+  /* ===================== Filters (backend-driven) ===================== */
 
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const activeStatus: StatusFilter =
+    filters?.status === "pending" ||
+    filters?.status === "approved" ||
+    filters?.status === "rejected"
+      ? (filters.status as UserStatus)
+      : "all";
 
-  const filteredAndSortedUsers = useMemo(() => {
-    const statusOrder: Record<UserStatus, number> = {
-      pending: 1,
-      approved: 2,
-      rejected: 3,
-    };
+  const applyStatusFilter = (value: StatusFilter) => {
+    const query: Record<string, any> = {};
 
-    const filtered =
-      statusFilter === "all"
-        ? users.data
-        : users.data.filter((u) => getUserStatus(u) === statusFilter);
+    if (value !== "all") {
+      query.status = value;
+    }
 
-    const sorted = [...filtered].sort((a, b) => {
-      const sa = statusOrder[getUserStatus(a)];
-      const sb = statusOrder[getUserStatus(b)];
-
-      if (sa !== sb) return sa - sb;
-      return a.name.localeCompare(b.name);
+    router.get(route("admin.users"), query, {
+      preserveScroll: true,
+      preserveState: true,
     });
-
-    return sorted;
-  }, [users.data, statusFilter]);
+  };
 
   /* ===================== Approve / Reject / Delete ===================== */
 
@@ -295,38 +298,37 @@ export default function Users() {
             </h1>
           </div>
           <div className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground">Total Users:</span>
+            <span className="text-muted-foreground">Total Users (this page):</span>
             <span className="font-semibold text-lg">
-              {filteredAndSortedUsers.length}
+              {users.data.length}
             </span>
           </div>
         </div>
 
-        {/* FILTER BAR: Status */}
-        {users.data.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            <span className="text-xs text-muted-foreground mt-1 mr-1">Status:</span>
-            {[
-              { label: "All", value: "all" as StatusFilter },
-              { label: "Pending", value: "pending" as StatusFilter },
-              { label: "Approved", value: "approved" as StatusFilter },
-              { label: "Rejected", value: "rejected" as StatusFilter },
-            ].map((f) => (
-              <button
-                key={f.value}
-                type="button"
-                onClick={() => setStatusFilter(f.value)}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
-                  statusFilter === f.value
-                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                    : "bg-background text-foreground border-border hover:bg-muted"
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-        )}
+        {/* FILTER BAR: Status (backend filter) */}
+<div className="flex flex-wrap gap-2">
+  <span className="text-xs text-muted-foreground mt-1 mr-1">Status:</span>
+  {[
+    { label: "All", value: "all" as StatusFilter },
+    { label: "Pending", value: "pending" as StatusFilter },
+    { label: "Approved", value: "approved" as StatusFilter },
+    { label: "Rejected", value: "rejected" as StatusFilter },
+  ].map((f) => (
+    <button
+      key={f.value}
+      type="button"
+      onClick={() => applyStatusFilter(f.value)}
+      className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+        activeStatus === f.value
+          ? "bg-primary text-primary-foreground border-primary shadow-sm"
+          : "bg-background text-foreground border-border hover:bg-muted"
+      }`}
+    >
+      {f.label}
+    </button>
+  ))}
+</div>
+
 
         {/* Empty State OR Table */}
         {users.data.length === 0 ? (
@@ -334,10 +336,9 @@ export default function Users() {
             <div className="mx-auto mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-muted">
               <UsersIcon className="h-8 w-8 text-muted-foreground" />
             </div>
-            <h2 className="text-xl font-semibold">No users yet</h2>
+            <h2 className="text-xl font-semibold">No users found</h2>
             <p className="mt-2 text-sm text-muted-foreground max-w-sm mx-auto">
-              New users will appear here once they register. You'll be able to approve
-              and manage them.
+              Try changing the status filter above or wait for new registrations.
             </p>
           </div>
         ) : (
@@ -358,7 +359,7 @@ export default function Users() {
                 </thead>
 
                 <tbody>
-                  {filteredAndSortedUsers.map((user) => {
+                  {users.data.map((user) => {
                     const status = getUserStatus(user);
                     const isApproved = status === "approved";
 
@@ -488,7 +489,7 @@ export default function Users() {
 
             {/* Mobile Card View */}
             <div className="md:hidden space-y-4">
-              {filteredAndSortedUsers.map((user) => {
+              {users.data.map((user) => {
                 const status = getUserStatus(user);
                 const isApproved = status === "approved";
 
@@ -556,7 +557,7 @@ export default function Users() {
                     )}
 
                     {/* Actions */}
-                    <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
+                    <div className="flex flex-wrap gap-2 pt-3 border-top border-border">
                       {canApproveReject && (
                         <>
                           <Button
@@ -710,7 +711,7 @@ export default function Users() {
                           alt="Barangay Permit"
                           className="w-full h-full object-cover"
                           onError={(e) => {
-                            e.currentTarget.style.display = "none";
+                            (e.currentTarget as HTMLImageElement).style.display = "none";
                           }}
                         />
                       ) : (

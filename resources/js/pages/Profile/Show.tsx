@@ -222,6 +222,23 @@ export default function ProfileShow({
         clearErrors();
     };
 
+    const isOwnerOrAdmin = isOwner || isAdmin;
+
+const statusOptions: { label: string; value: StatusFilter }[] = isOwnerOrAdmin
+    ? [
+          { label: 'All', value: 'All' },
+          { label: 'Waiting for Approval', value: 'waiting_for_approval' },
+          { label: 'Available', value: 'available' },
+          { label: 'Pending', value: 'pending' },
+          { label: 'Adopted', value: 'adopted' },
+          { label: 'Rejected', value: 'rejected' },
+      ]
+    : [
+          { label: 'All', value: 'All' },
+          { label: 'Available', value: 'available' },
+          { label: 'Pending', value: 'pending' },
+      ];
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!editingPet) return;
@@ -1026,49 +1043,23 @@ export default function ProfileShow({
                                 ))}
                             </div>
 
-                            {/* Status buttons */}
-                            <div className="flex flex-wrap gap-2">
-                                {[
-                                    { label: 'All', value: 'All' as StatusFilter },
-                                    {
-                                        label: 'Waiting for Approval',
-                                        value: 'waiting_for_approval' as StatusFilter,
-                                    },
-                                    {
-                                        label: 'Available',
-                                        value: 'available' as StatusFilter,
-                                    },
-                                    {
-                                        label: 'Pending',
-                                        value: 'pending' as StatusFilter,
-                                    },
-                                    {
-                                        label: 'Adopted',
-                                        value: 'adopted' as StatusFilter,
-                                    },
-                                    {
-                                        label: 'Rejected',
-                                        value: 'rejected' as StatusFilter,
-                                    },
-                                ].map((s) => (
-                                    <button
-                                        key={s.value}
-                                        onClick={() =>
-                                            applyFilters(
-                                                activeCategory,
-                                                s.value,
-                                            )
-                                        }
-                                        className={`rounded-full px-4 py-2 font-semibold transition-all ${
-                                            activeStatus === s.value
-                                                ? 'scale-105 bg-gradient-to-r from-pink-600 to-rose-600 text-white shadow-lg'
-                                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
-                                        }`}
-                                    >
-                                        {s.label}
-                                    </button>
-                                ))}
-                            </div>
+                           {/* Status buttons */}
+<div className="flex flex-wrap gap-2">
+    {statusOptions.map((s) => (
+        <button
+            key={s.value}
+            onClick={() => applyFilters(activeCategory, s.value)}
+            className={`rounded-full px-4 py-2 font-semibold transition-all ${
+                activeStatus === s.value
+                    ? 'scale-105 bg-gradient-to-r from-pink-600 to-rose-600 text-white shadow-lg'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+            }`}
+        >
+            {s.label}
+        </button>
+    ))}
+</div>
+
                         </div>
                     </div>
                 </div>
@@ -1234,7 +1225,7 @@ export default function ProfileShow({
                                         </div>
                                     )}
 
-                                    
+
                                 </div>
                             </div>
                         ))}

@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "builds": [
+    { "src": "public/index.php", "use": "@vercel/php" },
+    { "src": "resources/js/**/*", "use": "@vercel/node" }
+  ],
+  "routes": [
+    { "src": "/(.*)", "dest": "/public/index.php" }
+  ]
+}

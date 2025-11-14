@@ -87,6 +87,13 @@ export default function SponsorIndex({ sponsors, filters, auth }: PageProps) {
     ? []
     : sponsors?.links ?? [];
 
+  const prevLink =
+    paginationLinks.length > 0 ? paginationLinks[0] : null;
+  const nextLink =
+    paginationLinks.length > 0
+      ? paginationLinks[paginationLinks.length - 1]
+      : null;
+
   const [activeStatus, setActiveStatus] = useState<
     "All" | "waiting_for_approval" | "approved" | "rejected"
   >((filters?.status as any) || "All");
@@ -378,7 +385,9 @@ export default function SponsorIndex({ sponsors, filters, auth }: PageProps) {
                       {/* Reject reason box */}
                       {s.reject_reason && (
                         <div className="mt-1 rounded-lg border border-rose-200 dark:border-rose-800 bg-rose-50/80 dark:bg-rose-950/30 px-3 py-2 text-[11px] text-rose-700 dark:text-rose-200">
-                          <p className="font-semibold mb-0.5">Rejection reason</p>
+                          <p className="font-semibold mb-0.5">
+                            Rejection reason
+                          </p>
                           <p className="leading-snug max-h-24 overflow-y-auto">
                             {s.reject_reason}
                           </p>
@@ -469,24 +478,51 @@ export default function SponsorIndex({ sponsors, filters, auth }: PageProps) {
 
             {/* Pagination for sponsors */}
             {paginationLinks.length > 0 && (
-              <div className="mt-6 flex flex-wrap justify-center gap-2">
-                {paginationLinks.map((link, i) => (
-                  <Button
-                    key={i}
-                    size="sm"
-                    variant={link.active ? "default" : "outline"}
-                    disabled={!link.url}
-                    onClick={() => link.url && router.visit(link.url)}
-                    className={
-                      "min-w-[2.5rem] " +
-                      (link.active
-                        ? "bg-black text-white hover:bg-black"
-                        : "text-black dark:text-white")
+              <div className="mt-6">
+                {/* Mobile: Previous / Next */}
+                <div className="flex justify-between gap-3 sm:hidden">
+                  <button
+                    disabled={!prevLink?.url}
+                    onClick={() =>
+                      prevLink?.url && router.visit(prevLink.url)
                     }
+                    className="flex-1 rounded-xl border-2 border-gray-300 bg-white px-4 py-3 text-xs font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
                   >
-                    <span dangerouslySetInnerHTML={{ __html: link.label }} />
-                  </Button>
-                ))}
+                    ← Previous
+                  </button>
+                  <button
+                    disabled={!nextLink?.url}
+                    onClick={() =>
+                      nextLink?.url && router.visit(nextLink.url)
+                    }
+                    className="flex-1 rounded-xl border-2 border-gray-300 bg-white px-4 py-3 text-xs font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                  >
+                    Next →
+                  </button>
+                </div>
+
+                {/* Desktop: numbered buttons */}
+                <div className="hidden sm:flex flex-wrap justify-center gap-2">
+                  {paginationLinks.map((link, i) => (
+                    <Button
+                      key={i}
+                      size="sm"
+                      variant={link.active ? "default" : "outline"}
+                      disabled={!link.url}
+                      onClick={() => link.url && router.visit(link.url)}
+                      className={
+                        "min-w-[2.5rem] " +
+                        (link.active
+                          ? "bg-black text-white hover:bg-black"
+                          : "text-black dark:text-white")
+                      }
+                    >
+                      <span
+                        dangerouslySetInnerHTML={{ __html: link.label }}
+                      />
+                    </Button>
+                  ))}
+                </div>
               </div>
             )}
           </>
@@ -503,7 +539,7 @@ export default function SponsorIndex({ sponsors, filters, auth }: PageProps) {
           <div className="w-full max-w-md rounded-2xl bg-white dark:bg-gray-900 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+                <h2 className="text-lg font-bold text-gray-900 dark:text:white dark:text-white">
                   Edit Sponsor QR
                 </h2>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -559,7 +595,9 @@ export default function SponsorIndex({ sponsors, filters, auth }: PageProps) {
                   required
                 />
                 {editErrors.qr && (
-                  <p className="text-red-500 text-xs mt-1">{editErrors.qr}</p>
+                  <p className="text-red-500 text-xs mt-1">
+                    {editErrors.qr}
+                  </p>
                 )}
               </div>
 

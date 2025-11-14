@@ -6,10 +6,9 @@ use App\Models\User;
 use App\Models\Adoption;
 use App\Models\Sponsor;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use Inertia\Inertia;
 
 class ProfileController extends Controller
 {
@@ -41,15 +40,28 @@ class ProfileController extends Controller
             ->where('name', $name)
             ->firstOrFail();
 
-        $viewer = $request->user();
+        $viewer  = $request->user();
         $isOwner = $viewer && $viewer->id === $profile->id;
         $isAdmin = $viewer && in_array($viewer->role ?? '', ['admin', 'superadmin'], true);
+
+        // 🔎 Filters galing sa query string
+        $status   = $request->query('status');   // waiting_for_approval, available, pending, adopted, rejected
+        $category = $request->query('category'); // cat, dog
+
+        $allowedStatuses   = ['waiting_for_approval', 'available', 'pending', 'adopted', 'rejected'];
+        $allowedCategories = ['cat', 'dog'];
+
+        if (!in_array($status, $allowedStatuses, true)) {
+            $status = null;
+        }
+        if (!in_array($category, $allowedCategories, true)) {
+            $category = null;
+        }
 
         // Base query: lahat ng adoption posts ng profile owner
         $query = Adoption::query()
             ->with(['user:id,name'])
-            ->where('user_id', $profile->id)
-            ->orderByDesc('created_at');
+            ->where('user_id', $profile->id);
 
         /**
          * Visibility rules:
@@ -67,41 +79,74 @@ class ProfileController extends Controller
             $query->whereIn('status', ['available', 'pending']);
         }
 
-        $pets = $query->get();
+        // ✅ Apply category filter kung meron
+        if ($category) {
+            $query->where('category', $category);
+        }
 
-        // Transform pets bago ipadala sa frontend
-        $pets->transform(function (Adoption $pet) {
-            $ageText = $this->ageText($pet->age, $pet->age_unit);
-            $lifeStage = $this->computeLifeStage($pet->category, $pet->age, $pet->age_unit);
-            $gender = $pet->gender ? strtolower($pet->gender) : null;
+        // ✅ Apply status filter kung meron
+        if ($status) {
+            $query->where('status', $status);
+        }
 
-            $imageUrl = $pet->image_path
-                ? asset('storage/' . $pet->image_path)
-                : null;
+        /**
+         * ✅ Custom order:
+         *  1) waiting_for_approval (A–Z)
+         *  2) available (A–Z)
+         *  3) pending (A–Z)
+         *  4) adopted (A–Z)
+         *  5) rejected (A–Z)
+         *  6) iba pa (fallback)
+         */
+        $query
+            ->orderByRaw("
+                CASE status
+                    WHEN 'waiting_for_approval' THEN 1
+                    WHEN 'available' THEN 2
+                    WHEN 'pending' THEN 3
+                    WHEN 'adopted' THEN 4
+                    WHEN 'rejected' THEN 5
+                    ELSE 6
+                END
+            ")
+            ->orderBy('pet_name', 'asc');
 
-            return (object) [
-                'id' => $pet->id,
-                'pet_name' => $pet->pet_name,
-                'user' => $pet->user ? (object) [
-                    'id' => $pet->user->id,
-                    'name' => $pet->user->name,
-                ] : null,
-                'gender' => $gender,
-                'age' => $pet->age,
-                'age_unit' => $pet->age_unit,
-                'category' => $pet->category,
-                'breed' => $pet->breed,
-                'color' => $pet->color,
-                'location' => $pet->location,
-                'description' => $pet->description,
-                'status' => $pet->status,
-                'created_at' => $pet->created_at?->toISOString(),
-                'image_url' => $imageUrl,
-                'age_text' => $ageText,
-                'life_stage' => $lifeStage,
-                'reject_reason' => $pet->reject_reason,
-            ];
-        });
+        // Paginated + transformed pets
+        $pets = $query
+            ->paginate(9)              // 9 per page
+            ->withQueryString()        // 🔥 dalhin ?status=&category= sa links
+            ->through(function (Adoption $pet) {
+                $ageText   = $this->ageText($pet->age, $pet->age_unit);
+                $lifeStage = $this->computeLifeStage($pet->category, $pet->age, $pet->age_unit);
+                $gender    = $pet->gender ? strtolower($pet->gender) : null;
+
+                $imageUrl = $pet->image_path
+                    ? asset('storage/' . $pet->image_path)
+                    : null;
+
+                return (object) [
+                    'id'            => $pet->id,
+                    'pet_name'      => $pet->pet_name,
+                    'user'          => $pet->user ? (object) [
+                        'id'   => $pet->user->id,
+                        'name' => $pet->user->name,
+                    ] : null,
+                    'gender'        => $gender,
+                    'age'           => $pet->age,
+                    'age_unit'      => $pet->age_unit,
+                    'category'      => $pet->category,
+                    'breed'         => $pet->breed,
+                    'color'         => $pet->color,
+                    'location'      => $pet->location,
+                    'description'   => $pet->description,
+                    'status'        => $pet->status,
+                    'created_at'    => $pet->created_at?->toISOString(),
+                    'image_url'     => $imageUrl,
+                    'age_text'      => $ageText,
+                    'life_stage'    => $lifeStage,
+                    'reject_reason' => $pet->reject_reason,
+                ];
+            });
 
         // Sponsor data ng profile owner (para sa Sponsor QR section)
         $sponsor = Sponsor::where('user_id', $profile->id)->first();
@@ -113,32 +158,32 @@ class ProfileController extends Controller
                 : null;
 
             $sponsorData = (object) [
-                'id' => $sponsor->id,
-                'status' => $sponsor->status,
+                'id'            => $sponsor->id,
+                'status'        => $sponsor->status,
                 'reject_reason' => $sponsor->reject_reason,
-                'qr_url' => $qrUrl,
+                'qr_url'        => $qrUrl,
             ];
         }
 
         return Inertia::render('Profile/Show', [
             'profile' => [
-                'id' => $profile->id,
+                'id'   => $profile->id,
                 'name' => $profile->name,
             ],
-            'pets' => $pets,
+            'pets'    => $pets,
             'sponsor' => $sponsorData,
-            'auth' => [
+            'auth'    => [
                 'user' => $viewer,
+            ],
+            'filters' => [
+                'status'   => $status,
+                'category' => $category,
             ],
         ]);
     }
 
     /**
      * Auth user update profile (normal flow sa approved users).
-     * Kapag user nag-edit → status balik sa "pending":
-     *  - is_approved = false
-     *  - is_rejected = false
-     *  - reject_reason = null
      */
     public function update(Request $request)
     {
@@ -148,15 +193,14 @@ class ProfileController extends Controller
         }
 
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
+            'name'  => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', Rule::unique('users')->ignore($user->id)],
-            // kung may iba ka pang fields (address, contact, etc) idagdag dito
         ]);
 
         $user->update(array_merge($data, [
-            'is_approved' => false,   // balik PENDING
-            'is_rejected' => false,   // clear REJECTED flag
-            'reject_reason' => null,    // clear reason
+            'is_approved'   => false,
+            'is_rejected'   => false,
+            'reject_reason' => null,
         ]));
 
         return back()->with('success', 'Profile updated. Your account is now pending for review again.');
@@ -174,30 +218,27 @@ class ProfileController extends Controller
         }
 
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', Rule::unique('users')->ignore($user->id)],
-            'password' => ['required', 'confirmed', 'min:8'],
-            'barangay_permit' => ['nullable', 'image', 'max:2048'], // 2MB
+            'name'            => ['required', 'string', 'max:255'],
+            'email'           => ['required', 'email', Rule::unique('users')->ignore($user->id)],
+            'password'        => ['required', 'confirmed', 'min:8'],
+            'barangay_permit' => ['nullable', 'image', 'max:2048'],
         ]);
 
-        // handle barangay permit upload kung may bago
         if ($request->hasFile('barangay_permit')) {
-            $path = $request->file('barangay_permit')->store('barangay_permits', 'public');
+            $path                    = $request->file('barangay_permit')->store('barangay_permits', 'public');
             $data['barangay_permit'] = $path;
         }
 
-        // update basic info
-        $user->name = $data['name'];
-        $user->email = $data['email'];
+        $user->name     = $data['name'];
+        $user->email    = $data['email'];
         $user->password = Hash::make($data['password']);
 
         if (isset($data['barangay_permit'])) {
             $user->barangay_permit = $data['barangay_permit'];
         }
 
-        // RESET STATUS: back to pending
-        $user->is_approved = false;
-        $user->is_rejected = false;
+        $user->is_approved   = false;
+        $user->is_rejected   = false;
         $user->reject_reason = null;
 
         $user->save();
@@ -224,7 +265,7 @@ class ProfileController extends Controller
         }
 
         $singular = ($unit === 'months') ? 'month' : 'year';
-        $label = $age === 1 ? $singular : $singular . 's';
+        $label    = $age === 1 ? $singular : $singular . 's';
 
         return "{$age} {$label}";
     }
@@ -236,33 +277,23 @@ class ProfileController extends Controller
         }
 
         $months = ($unit === 'months') ? $age : $age * 12;
-        $type = strtolower($category);
+        $type   = strtolower($category);
 
         if ($type === 'dog') {
-            if ($months < 6)
-                return 'Puppy';
-            if ($months < 9)
-                return 'Junior';
-            if ($months < 78)
-                return 'Adult';
-            if ($months < 117)
-                return 'Mature';
-            if ($months < 156)
-                return 'Senior';
+            if ($months < 6)  return 'Puppy';
+            if ($months < 9)  return 'Junior';
+            if ($months < 78) return 'Adult';
+            if ($months < 117)return 'Mature';
+            if ($months < 156)return 'Senior';
             return 'Geriatric';
         }
 
         if ($type === 'cat') {
-            if ($months < 6)
-                return 'Kitten';
-            if ($months < 24)
-                return 'Junior';
-            if ($months < 72)
-                return 'Prime';
-            if ($months < 120)
-                return 'Mature';
-            if ($months < 168)
-                return 'Senior';
+            if ($months < 6)   return 'Kitten';
+            if ($months < 24)  return 'Junior';
+            if ($months < 72)  return 'Prime';
+            if ($months < 120) return 'Mature';
+            if ($months < 168) return 'Senior';
             return 'Geriatric';
         }
 

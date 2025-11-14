@@ -16,195 +16,176 @@ class AdoptionController extends Controller
      * GET /adoption
      * Public adoption listing.
      */
-    public function index(Request $request)
-    {
-        $user = $request->user();
+    // app/Http/Controllers/AdoptionController.php
 
-        // ------------------ PETS QUERY (para sa auth view) ------------------
-        $petQuery = Adoption::query()
-            ->with(['user:id,name'])
-            ->orderByDesc('created_at');
+public function index(Request $request)
+{
+    $user = $request->user();
 
-        // ✅ Visibility sa adoption page:
-        // - Guest: available lang
-        // - Auth user: available + pending
-        if (!$user) {
-            $petQuery->where('status', 'available');
+    $statusFilter = $request->input('status'); // 'available', 'pending' or null
+
+    // ------------------ PETS QUERY (para sa auth view) ------------------
+    $petQuery = Adoption::query()
+        ->with(['user:id,name']);
+
+    if ($user) {
+        // Auth user: allowed statuses sa adoption index
+        $allowedStatuses = ['available', 'pending'];
+
+        if ($statusFilter && in_array($statusFilter, $allowedStatuses, true)) {
+            // Kapag may ?status=available/pending → isang status lang
+            $petQuery->where('status', $statusFilter);
         } else {
-            $petQuery->whereIn('status', ['available', 'pending']);
+            // Default: both available + pending
+            $petQuery->whereIn('status', $allowedStatuses);
         }
+    } else {
+        // Guests: pets listing (hindi naman ginagamit sa UI, guest view is user cards)
+        $petQuery->where('status', 'available');
+    }
 
-        // Optional filters (category, gender)
-        if ($request->filled('category')) {
-            $petQuery->where('category', $request->string('category'));
-        }
+    // Optional filters (category, gender)
+    if ($request->filled('category')) {
+        $petQuery->where('category', $request->string('category'));
+    }
 
-        if ($request->filled('gender')) {
-            $petQuery->where('gender', strtolower($request->string('gender')));
-        }
+    if ($request->filled('gender')) {
+        $petQuery->where('gender', strtolower($request->string('gender')));
+    }
 
-        $adoptions = $petQuery->paginate(12)->withQueryString();
+    // ✅ Sort: available → pending, tapos A–Z by pet_name
+    $petQuery
+        ->orderByRaw("
+            CASE status
+                WHEN 'available' THEN 1
+                WHEN 'pending' THEN 2
+                ELSE 99
+            END
+        ")
+        ->orderBy('pet_name', 'asc');
 
-        // Transform pets → attach age_text, life_stage, image_url
-        $adoptions->getCollection()->transform(function (Adoption $pet) {
-            $ageText = $this->ageText($pet->age, $pet->age_unit);
-            $lifeStage = $this->computeLifeStage($pet->category, $pet->age, $pet->age_unit);
-            $gender = $pet->gender ? strtolower($pet->gender) : null;
+    $adoptions = $petQuery->paginate(12)->withQueryString();
 
-            $imageUrl = $pet->image_path
-                ? asset('storage/' . $pet->image_path)
-                : null;
+    // Transform pets bago ipadala sa frontend
+    $adoptions->getCollection()->transform(function (Adoption $pet) {
+        $ageText   = $this->ageText($pet->age, $pet->age_unit);
+        $lifeStage = $this->computeLifeStage($pet->category, $pet->age, $pet->age_unit);
+        $gender    = $pet->gender ? strtolower($pet->gender) : null;
 
-            return (object) [
-                'id' => $pet->id,
-                'pet_name' => $pet->pet_name,
-                'user' => $pet->user ? (object) [
-                    'id' => $pet->user->id,
-                    'name' => $pet->user->name,
-                ] : null,
-                'gender' => $gender,
-                'age' => $pet->age,
-                'age_unit' => $pet->age_unit,
-                'category' => $pet->category,
-                'breed' => $pet->breed,
-                'color' => $pet->color,
-                'location' => $pet->location,
-                'description' => $pet->description,
-                'status' => $pet->status,
-                'created_at' => $pet->created_at?->toISOString(),
-                'image_url' => $imageUrl,
-                'age_text' => $ageText,
-                'life_stage' => $lifeStage,
-            ];
-        });
+        $imageUrl = $pet->image_path
+            ? asset('storage/' . $pet->image_path)
+            : null;
 
-        // ------------------ GUEST USERS QUERY (para sa guest view) ------------------
-        $guestUsers = null;
+        return (object) [
+            'id'          => $pet->id,
+            'pet_name'    => $pet->pet_name,
+            'user'        => $pet->user ? (object) [
+                'id'   => $pet->user->id,
+                'name' => $pet->user->name,
+            ] : null,
+            'gender'      => $gender,
+            'age'         => $pet->age,
+            'age_unit'    => $pet->age_unit,
+            'category'    => $pet->category,
+            'breed'       => $pet->breed,
+            'color'       => $pet->color,
+            'location'    => $pet->location,
+            'description' => $pet->description,
+            'status'      => $pet->status,
+            'created_at'  => $pet->created_at?->toISOString(),
+            'image_url'   => $imageUrl,
+            'age_text'    => $ageText,
+            'life_stage'  => $lifeStage,
+        ];
+    });
 
-        if (!$user) {
-            $guestUsers = User::query()
-                ->whereHas('adoptions', function ($q) {
+    // ------------------ GUEST USERS QUERY (para sa guest view) ------------------
+    $guestUsers = null;
+
+    if (!$user) {
+        $guestUsers = User::query()
+            // guest can see owners na may AVAILABLE or PENDING pets
+            ->whereHas('adoptions', function ($q) {
+                $q->whereIn('status', ['available', 'pending']);
+            })
+            ->when(
+                $request->filled('q'),
+                function ($q) use ($request) {
+                    $search = $request->string('q');
+                    $q->where('name', 'like', "%{$search}%");
+                }
+            )
+            ->with([
+                'adoptions' => function ($q) {
+                    $q->whereIn('status', ['available', 'pending'])
+                        ->latest()
+                        ->take(3);
+                },
+            ])
+            ->withCount([
+                // available count
+                'adoptions as available_posts_count' => function ($q) {
                     $q->where('status', 'available');
-                })
-                ->when(
-                    $request->filled('q'),
-                    function ($q) use ($request) {
-                        $search = $request->string('q');
-                        $q->where('name', 'like', "%{$search}%");
-                    }
-                )
-                // Kukunin natin ang *latest available pet* per user
-                ->with([
-                    'adoptions' => function ($q) {
-                        $q->where('status', 'available')
-                            ->latest()
-                            ->take(1);
-                    },
-                ])
-                ->withCount([
-                    'adoptions as available_posts_count' => function ($q) {
-                        $q->where('status', 'available');
-                    },
-                    'adoptions as total_posts_count',
-                ])
-                ->orderBy('name')
-                ->paginate(9)
-                ->withQueryString();
+                },
+                // total count
+                'adoptions as total_posts_count',
+            ])
+            ->orderBy('name')
+            ->paginate(9)
+            ->withQueryString();
 
-            // ------------------ GUEST USERS QUERY (para sa guest view) ------------------
-            $guestUsers = null;
+        $guestUsers->getCollection()->transform(function (User $u) {
+            $featured = $u->adoptions
+                ->sortByDesc('created_at')
+                ->firstWhere('status', 'available');
 
-            if (!$user) {
-                $guestUsers = User::query()
-                    // ✅ guest can see owners na may AVAILABLE *or* PENDING pets
-                    ->whereHas('adoptions', function ($q) {
-                        $q->whereIn('status', ['available', 'pending']);
-                    })
-                    ->when(
-                        $request->filled('q'),
-                        function ($q) use ($request) {
-                            $search = $request->string('q');
-                            $q->where('name', 'like', "%{$search}%");
-                        }
-                    )
-                    // Kukunin natin pets na available + pending (for featured selection)
-                    ->with([
-                        'adoptions' => function ($q) {
-                            $q->whereIn('status', ['available', 'pending'])
-                                ->latest()
-                                ->take(3); // konting buffer, para makapili ng featured
-                        },
-                    ])
-                    ->withCount([
-                        // available count stays as-is (totoong "available" lang)
-                        'adoptions as available_posts_count' => function ($q) {
-                            $q->where('status', 'available');
-                        },
-                        // total_posts_count = lahat ng adoptions niya (kahit anong status)
-                        'adoptions as total_posts_count',
-                    ])
-                    ->orderBy('name')
-                    ->paginate(9)
-                    ->withQueryString();
-
-                // Transform users → may featured_pet na may image_url
-                $guestUsers->getCollection()->transform(function (User $u) {
-                    // ✅ featured pet priority:
-                    //  1) kung may available, yun kunin
-                    //  2) kung wala, fallback sa first pending
-                    $featured = $u->adoptions
-                        ->sortByDesc('created_at')
-                        ->firstWhere('status', 'available');
-
-                    if (!$featured) {
-                        $featured = $u->adoptions
-                            ->sortByDesc('created_at')
-                            ->firstWhere('status', 'pending');
-                    }
-
-                    $featuredPet = null;
-
-                    if ($featured) {
-                        $ageText = $this->ageText($featured->age, $featured->age_unit);
-                        $lifeStage = $this->computeLifeStage($featured->category, $featured->age, $featured->age_unit);
-
-                        $imageUrl = $featured->image_path
-                            ? asset('storage/' . $featured->image_path)
-                            : null;
-
-                        $featuredPet = (object) [
-                            'id' => $featured->id,
-                            'pet_name' => $featured->pet_name,
-                            'image_url' => $imageUrl,
-                            'location' => $featured->location,
-                            'category' => $featured->category,
-                            'age_text' => $ageText,
-                            'life_stage' => $lifeStage,
-                        ];
-                    }
-
-                    return (object) [
-                        'id' => $u->id,
-                        'name' => $u->name,
-                        'available_posts_count' => $u->available_posts_count,
-                        'total_posts_count' => $u->total_posts_count,
-                        'featured_pet' => $featuredPet,
-                    ];
-                });
+            if (!$featured) {
+                $featured = $u->adoptions
+                    ->sortByDesc('created_at')
+                    ->firstWhere('status', 'pending');
             }
 
-        }
+            $featuredPet = null;
+            if ($featured) {
+                $ageText   = $this->ageText($featured->age, $featured->age_unit);
+                $lifeStage = $this->computeLifeStage($featured->category, $featured->age, $featured->age_unit);
+                $imageUrl  = $featured->image_path
+                    ? asset('storage/' . $featured->image_path)
+                    : null;
 
-        return Inertia::render('Adoption/Index', [
-            'adoption' => $adoptions,
-            'guestUsers' => $guestUsers,
-            'filters' => [
-                'q' => $request->input('q'),
-                'category' => $request->input('category'),
-                'gender' => $request->input('gender'),
-            ],
-        ]);
+                $featuredPet = (object) [
+                    'id'        => $featured->id,
+                    'pet_name'  => $featured->pet_name,
+                    'image_url' => $imageUrl,
+                    'location'  => $featured->location,
+                    'category'  => $featured->category,
+                    'age_text'  => $ageText,
+                    'life_stage'=> $lifeStage,
+                ];
+            }
+
+            return (object) [
+                'id'                     => $u->id,
+                'name'                   => $u->name,
+                'available_posts_count'  => $u->available_posts_count,
+                'total_posts_count'      => $u->total_posts_count,
+                'featured_pet'           => $featuredPet,
+            ];
+        });
     }
+
+    return Inertia::render('Adoption/Index', [
+        'adoption'   => $adoptions,
+        'guestUsers' => $guestUsers,
+        'filters'    => [
+            'q'        => $request->input('q'),
+            'category' => $request->input('category'),
+            'gender'   => $request->input('gender'),
+            'status'   => $statusFilter, // 🔥 para alam ng frontend ano active
+        ],
+    ]);
+}
+
 
     /**
      * GET /adoption/{adoption}
@@ -276,8 +257,6 @@ class AdoptionController extends Controller
             'pet' => $pet,
         ]);
     }
-
-
 
     /**
      * POST /adoption
@@ -473,30 +452,20 @@ class AdoptionController extends Controller
         $type = strtolower($category);
 
         if ($type === 'dog') {
-            if ($months < 6)
-                return 'Puppy';
-            if ($months < 9)
-                return 'Junior';
-            if ($months < 78)
-                return 'Adult';
-            if ($months < 117)
-                return 'Mature';
-            if ($months < 156)
-                return 'Senior';
+            if ($months < 6) return 'Puppy';
+            if ($months < 9) return 'Junior';
+            if ($months < 78) return 'Adult';
+            if ($months < 117) return 'Mature';
+            if ($months < 156) return 'Senior';
             return 'Geriatric';
         }
 
         if ($type === 'cat') {
-            if ($months < 6)
-                return 'Kitten';
-            if ($months < 24)
-                return 'Junior';
-            if ($months < 72)
-                return 'Prime';
-            if ($months < 120)
-                return 'Mature';
-            if ($months < 168)
-                return 'Senior';
+            if ($months < 6) return 'Kitten';
+            if ($months < 24) return 'Junior';
+            if ($months < 72) return 'Prime';
+            if ($months < 120) return 'Mature';
+            if ($months < 168) return 'Senior';
             return 'Geriatric';
         }
 

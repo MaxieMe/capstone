@@ -18,25 +18,31 @@ class SponsorController extends Controller
         $status = $request->query('status');
 
         $sponsors = Sponsor::query()
-            ->with(['user:id,name'])
-            ->when($status, function ($q) use ($status) {
-                $q->where('status', $status);
-            })
-            ->orderByDesc('created_at')
-            ->get()
-            ->map(function (Sponsor $s) {
-                return (object)[
-                    'id'            => $s->id,
-                    'status'        => $s->status,
-                    'reject_reason' => $s->reject_reason,
-                    'created_at'    => $s->created_at?->toISOString(),
-                    'qr_url'        => $s->qr_path ? asset('storage/'.$s->qr_path) : null,
-                    'user'          => $s->user ? (object)[
-                        'id'   => $s->user->id,
-                        'name' => $s->user->name,
-                    ] : null,
-                ];
-            });
+    ->with(['user:id,name'])
+    ->when($status, function ($q) use ($status) {
+        $q->where('status', $status);
+    })
+    ->orderByDesc('created_at')
+    ->paginate(9) // ilang per page gusto mo, 9 sample
+    ->through(function (Sponsor $s) {
+        return (object)[
+            'id'            => $s->id,
+            'status'        => $s->status,
+            'reject_reason' => $s->reject_reason,
+            'created_at'    => $s->created_at?->toISOString(),
+            'qr_url'        => $s->qr_path ? asset('storage/'.$s->qr_path) : null,
+            'user'          => $s->user ? (object)[
+                'id'   => $s->user->id,
+                'name' => $s->user->name,
+            ] : null,
+        ];
+    });
+
+// optional kung gusto mong ma-preserve yung ?status= filter sa links:
+// if ($status) {
+//     $sponsors->appends(['status' => $status]);
+// }
+
 
         return Inertia::render('Sponsor/Index', [
             'sponsors' => $sponsors,

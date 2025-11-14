@@ -1,12 +1,12 @@
-// resources/js/Pages/Profile/Show.tsx
 import { CAT_BREEDS, DOG_BREEDS } from '@/components1/breed';
-import { useConfirmDialog } from '@/components1/confirm-dialog'; // 🔥 added
+import { Button } from '@/components/ui/button';
+import { useConfirmDialog } from '@/components1/confirm-dialog';
 import { DisableScroll } from '@/components1/disable-scroll';
 import { XButton } from '@/components1/x-button';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { route } from 'ziggy-js';
 
 type Role = 'user' | 'admin' | 'superadmin';
@@ -50,17 +50,39 @@ type Pet = {
     reject_reason?: string | null;
 };
 
+type PaginationLink = {
+    url: string | null;
+    label: string;
+    active: boolean;
+};
+
+type PaginatedPets = {
+    data: Pet[];
+    links: PaginationLink[];
+};
+
+type FiltersProps = {
+    status?: string | null;
+    category?: string | null;
+};
+
 type PageProps = {
     profile: ProfileUser;
-    pets: Pet[];
+    pets: PaginatedPets;
     sponsor?: Sponsor | null;
     auth?: { user?: any };
+    filters?: FiltersProps;
 };
 
 const PLACEHOLDER =
     'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="420"><rect width="100%" height="100%" fill="%23e5e7eb"/><text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle" fill="%239ca3af" font-size="24" font-family="system-ui">🐾</text><text x="50%" y="60%" dominant-baseline="middle" text-anchor="middle" fill="%239ca3af" font-size="16" font-family="system-ui">No Photo Available</text></svg>';
 
-export default function ProfileShow({ profile, pets, sponsor }: PageProps) {
+export default function ProfileShow({
+    profile,
+    pets,
+    sponsor,
+    filters,
+}: PageProps) {
     const page = usePage().props as any;
     const auth = page?.auth ?? {};
     const viewer = auth?.user ?? null;
@@ -74,34 +96,62 @@ export default function ProfileShow({ profile, pets, sponsor }: PageProps) {
     const name = (profile.name && profile.name.trim()) || '';
 
     const breadcrumbs: BreadcrumbItem[] = [
-        { title: 'Profiles', href: route('profile.index') },
+        { title: 'Profile', href: route('profile.index') },
     ];
 
-    // Filters
-    const [activeCategory, setActiveCategory] = useState<'All' | 'cat' | 'dog'>(
-        'All',
+    // 🔎 Active filters derived from props (query-driven)
+    const rawStatus = filters?.status ?? null;
+    const rawCategory = filters?.category ?? null;
+
+    const activeCategory: 'All' | 'cat' | 'dog' =
+        rawCategory === 'cat' || rawCategory === 'dog' ? rawCategory : 'All';
+
+    const allowedStatuses = [
+        'waiting_for_approval',
+        'available',
+        'pending',
+        'adopted',
+        'rejected',
+    ] as const;
+
+    type StatusFilter = 'All' | (typeof allowedStatuses)[number];
+
+    const activeStatus: StatusFilter = allowedStatuses.includes(
+        rawStatus as any,
+    )
+        ? (rawStatus as StatusFilter)
+        : 'All';
+
+    // 🔁 Apply filters by navigating with query string (backend will filter)
+    const applyFilters = (
+        categoryValue: 'All' | 'cat' | 'dog',
+        statusValue: StatusFilter,
+    ) => {
+        const query: Record<string, any> = {};
+
+        if (categoryValue !== 'All') {
+            query.category = categoryValue;
+        }
+        if (statusValue !== 'All') {
+            query.status = statusValue;
+        }
+
+        router.get(route('profile.show', { name: profile.name }), query, {
+            preserveScroll: true,
+            preserveState: true,
+        });
+    };
+
+    // Pagination helpers (Previous / Next)
+    const paginationLinks = pets?.links ?? [];
+    const prevLink = paginationLinks.find((l) =>
+        l.label.toLowerCase().includes('previous'),
+    );
+    const nextLink = paginationLinks.find((l) =>
+        l.label.toLowerCase().includes('next'),
     );
 
-    const [activeStatus, setActiveStatus] = useState<
-        'All' | 'waiting_for_approval' | 'available' | 'pending' | 'adopted'
-    >('All');
-
-    const filteredPets = useMemo(() => {
-        return (Array.isArray(pets) ? pets : [])
-            .filter(
-                (p) =>
-                    (activeCategory === 'All' ||
-                        (p.category &&
-                            p.category.toLowerCase() === activeCategory)) &&
-                    (activeStatus === 'All' ||
-                        (p.status && p.status.toLowerCase() === activeStatus)),
-            )
-            .sort(
-                (a, b) =>
-                    new Date(b.created_at || '').getTime() -
-                    new Date(a.created_at || '').getTime(),
-            );
-    }, [pets, activeCategory, activeStatus]);
+    const shownPets: Pet[] = Array.isArray(pets?.data) ? pets.data : [];
 
     /* =================== EDIT PET MODAL STATE =================== */
     const [showModal, setShowModal] = useState(false);
@@ -132,7 +182,7 @@ export default function ProfileShow({ profile, pets, sponsor }: PageProps) {
         image: null as File | null,
     });
 
-    const breedOptions = useMemo(() => {
+    const breedOptions = React.useMemo(() => {
         if (data.category === 'dog') return DOG_BREEDS;
         if (data.category === 'cat') return CAT_BREEDS;
         return [];
@@ -236,18 +286,14 @@ export default function ProfileShow({ profile, pets, sponsor }: PageProps) {
         });
     };
 
-    // ✅ Owner dapat makita QR kahit anong status (basta may qr_url)
     const hasAnyQr = !!sponsor && !!sponsor.qr_url;
-
-    // ✅ Public / non-owner: makakakita lang pag approved
     const hasPublicQr =
         !!sponsor && sponsor.status === 'approved' && !!sponsor.qr_url;
 
     /* =================== ACTIONS (with confirm + delete modal) =================== */
 
-    const { confirm } = useConfirmDialog(); // 🔥 for Cancel / Confirm
+    const { confirm } = useConfirmDialog();
 
-    // 🔥 Delete modal state
     const [deleteTarget, setDeleteTarget] = useState<Pet | null>(null);
     const [deleteConfirmText, setDeleteConfirmText] = useState('');
     const [deleteProcessing, setDeleteProcessing] = useState(false);
@@ -277,7 +323,6 @@ export default function ProfileShow({ profile, pets, sponsor }: PageProps) {
         });
     };
 
-    // 🔥 Cancel Pending with confirm dialog
     const handleCancelPending = async (pet: Pet) => {
         const ok = await confirm({
             title: 'Cancel Adoption Request',
@@ -298,7 +343,6 @@ export default function ProfileShow({ profile, pets, sponsor }: PageProps) {
         );
     };
 
-    // 🔥 Confirm / Mark Adopted with confirm dialog
     const handleConfirmPending = async (pet: Pet) => {
         const ok = await confirm({
             title: 'Mark as Adopted',
@@ -356,9 +400,7 @@ export default function ProfileShow({ profile, pets, sponsor }: PageProps) {
 
             {/* Disable scroll kapag may kahit anong modal */}
             <DisableScroll
-                showModal={
-                    showModal || showSponsorModal || showSponsorViewModal
-                }
+                showModal={showModal || showSponsorModal || showSponsorViewModal}
             />
 
             {/* Header */}
@@ -380,7 +422,10 @@ export default function ProfileShow({ profile, pets, sponsor }: PageProps) {
 
                             <div className="mt-4 flex flex-wrap justify-center gap-3 sm:justify-start">
                                 <span className="rounded-full bg-violet-100 px-3 py-1 text-sm font-semibold text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
-                                    {pets?.length ?? 0} posts
+                                    {Array.isArray(pets?.data)
+                                        ? pets.data.length
+                                        : 0}{' '}
+                                    posts
                                 </span>
 
                                 {/* Sponsor status badge – OWNER ONLY */}
@@ -465,8 +510,7 @@ export default function ProfileShow({ profile, pets, sponsor }: PageProps) {
                             {/* Pet Name */}
                             <div>
                                 <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                                    Pet Name{' '}
-                                    <span className="text-red-500">*</span>
+                                    Pet Name <span className="text-red-500">*</span>
                                 </label>
                                 <input
                                     type="text"
@@ -507,9 +551,7 @@ export default function ProfileShow({ profile, pets, sponsor }: PageProps) {
                                         className="w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-3 transition-all outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 dark:border-gray-600 dark:bg-gray-700 dark:focus:ring-violet-800"
                                         required
                                     >
-                                        <option value="">
-                                            Select Pet Type
-                                        </option>
+                                        <option value="">Select Pet Type</option>
                                         <option value="cat">🐱 Cat</option>
                                         <option value="dog">🐶 Dog</option>
                                     </select>
@@ -552,16 +594,11 @@ export default function ProfileShow({ profile, pets, sponsor }: PageProps) {
                                                             : 'Cat'
                                                     } Breed`}
                                                 </option>
-                                                {breedOptions.map(
-                                                    (b: string) => (
-                                                        <option
-                                                            key={b}
-                                                            value={b}
-                                                        >
-                                                            {b}
-                                                        </option>
-                                                    ),
-                                                )}
+                                                {breedOptions.map((b: string) => (
+                                                    <option key={b} value={b}>
+                                                        {b}
+                                                    </option>
+                                                ))}
                                             </>
                                         )}
                                     </select>
@@ -599,8 +636,7 @@ export default function ProfileShow({ profile, pets, sponsor }: PageProps) {
                             {/* Gender */}
                             <div>
                                 <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                                    Gender{' '}
-                                    <span className="text-red-500">*</span>
+                                    Gender <span className="text-red-500">*</span>
                                 </label>
                                 <div className="flex gap-4">
                                     {['male', 'female'].map((g) => (
@@ -856,9 +892,7 @@ export default function ProfileShow({ profile, pets, sponsor }: PageProps) {
                                 sponsor.status === 'rejected' &&
                                 sponsor.reject_reason && (
                                     <div className="rounded-xl border border-rose-200 bg-rose-50 p-2 text-xs text-rose-600 dark:border-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
-                                        <strong>
-                                            Previous rejection reason:
-                                        </strong>{' '}
+                                        <strong>Previous rejection reason:</strong>{' '}
                                         {sponsor.reject_reason}
                                     </div>
                                 )}
@@ -890,7 +924,7 @@ export default function ProfileShow({ profile, pets, sponsor }: PageProps) {
                 </div>
             )}
 
-            {/* FULL-SCREEN QR VIEW MODAL (owner: kahit waiting/rejected, others: only approved) */}
+            {/* FULL-SCREEN QR VIEW MODAL */}
             {showSponsorViewModal &&
                 sponsor?.qr_url &&
                 (isOwner || sponsor.status === 'approved') && (
@@ -966,16 +1000,20 @@ export default function ProfileShow({ profile, pets, sponsor }: PageProps) {
                         </div>
 
                         <div className="flex flex-col gap-3 sm:flex-row">
+                            {/* Category buttons */}
                             <div className="flex flex-wrap gap-2">
                                 {[
-                                    { label: 'All', value: 'All' },
-                                    { label: 'Cats', value: 'cat' },
-                                    { label: 'Dogs', value: 'dog' },
+                                    { label: 'All', value: 'All' as const },
+                                    { label: 'Cats', value: 'cat' as const },
+                                    { label: 'Dogs', value: 'dog' as const },
                                 ].map((c) => (
                                     <button
                                         key={c.value}
                                         onClick={() =>
-                                            setActiveCategory(c.value as any)
+                                            applyFilters(
+                                                c.value,
+                                                activeStatus,
+                                            )
                                         }
                                         className={`rounded-full px-4 py-2 font-semibold transition-all ${
                                             activeCategory === c.value
@@ -988,21 +1026,38 @@ export default function ProfileShow({ profile, pets, sponsor }: PageProps) {
                                 ))}
                             </div>
 
+                            {/* Status buttons */}
                             <div className="flex flex-wrap gap-2">
                                 {[
-                                    { label: 'All', value: 'All' },
+                                    { label: 'All', value: 'All' as StatusFilter },
                                     {
                                         label: 'Waiting for Approval',
-                                        value: 'waiting_for_approval',
+                                        value: 'waiting_for_approval' as StatusFilter,
                                     },
-                                    { label: 'Available', value: 'available' },
-                                    { label: 'Pending', value: 'pending' },
-                                    { label: 'Adopted', value: 'adopted' },
+                                    {
+                                        label: 'Available',
+                                        value: 'available' as StatusFilter,
+                                    },
+                                    {
+                                        label: 'Pending',
+                                        value: 'pending' as StatusFilter,
+                                    },
+                                    {
+                                        label: 'Adopted',
+                                        value: 'adopted' as StatusFilter,
+                                    },
+                                    {
+                                        label: 'Rejected',
+                                        value: 'rejected' as StatusFilter,
+                                    },
                                 ].map((s) => (
                                     <button
                                         key={s.value}
                                         onClick={() =>
-                                            setActiveStatus(s.value as any)
+                                            applyFilters(
+                                                activeCategory,
+                                                s.value,
+                                            )
                                         }
                                         className={`rounded-full px-4 py-2 font-semibold transition-all ${
                                             activeStatus === s.value
@@ -1020,10 +1075,10 @@ export default function ProfileShow({ profile, pets, sponsor }: PageProps) {
             </div>
 
             {/* Pets Grid */}
-            <div className="mx-auto max-w-7xl px-4 pb-14 sm:px-6 lg:px-8">
-                {filteredPets.length ? (
-                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-                        {filteredPets.map((pet) => (
+            <div className="mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
+                {shownPets.length ? (
+                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                        {shownPets.map((pet) => (
                             <div
                                 key={pet.id}
                                 className="group relative transform overflow-hidden rounded-2xl bg-white shadow-lg transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl dark:bg-gray-800"
@@ -1053,7 +1108,7 @@ export default function ProfileShow({ profile, pets, sponsor }: PageProps) {
                                     )}
                                 </div>
 
-                                {/* Rejected notice – profile page lang, owner lang makakakita */}
+                                {/* Rejected notice – owner only */}
                                 {isOwner && pet.status === 'rejected' && (
                                     <div className="absolute top-12 right-3 left-3 z-10 rounded-xl border border-red-300 bg-red-50 px-3 py-2 dark:border-red-700 dark:bg-red-900/20">
                                         <div className="flex items-center gap-2 text-sm font-semibold text-red-700 dark:text-red-300">
@@ -1179,16 +1234,7 @@ export default function ProfileShow({ profile, pets, sponsor }: PageProps) {
                                         </div>
                                     )}
 
-                                    {pet.status === 'rejected' &&
-                                        (isOwner || isAdmin) &&
-                                        pet.reject_reason && (
-                                            <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-600 dark:border-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
-                                                <strong>
-                                                    Reason for rejection:
-                                                </strong>{' '}
-                                                {pet.reject_reason}
-                                            </div>
-                                        )}
+                                    
                                 </div>
                             </div>
                         ))}
@@ -1229,7 +1275,56 @@ export default function ProfileShow({ profile, pets, sponsor }: PageProps) {
                 )}
             </div>
 
-            {/* 🔥 Delete Pet Dialog (type DELETE) */}
+            {/* Posts Pagination */}
+            {Array.isArray(pets?.links) && pets.links.length > 0 && (
+                <div className="mx-auto max-w-7xl px-4 pb-12 sm:px-6 lg:px-8">
+                    {/* Mobile: Previous / Next */}
+                    <div className="flex justify-between gap-3 sm:hidden">
+                        <button
+                            disabled={!prevLink?.url}
+                            onClick={() =>
+                                prevLink?.url && router.visit(prevLink.url)
+                            }
+                            className="flex-1 rounded-xl border-2 border-gray-300 bg-white px-4 py-3 font-semibold text-gray-700 shadow-md transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                        >
+                            ← Previous
+                        </button>
+                        <button
+                            disabled={!nextLink?.url}
+                            onClick={() =>
+                                nextLink?.url && router.visit(nextLink.url)
+                            }
+                            className="flex-1 rounded-xl border-2 border-gray-300 bg-white px-4 py-3 font-semibold text-gray-700 shadow-md transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                        >
+                            Next →
+                        </button>
+                    </div>
+
+                    {/* Desktop: numbered buttons */}
+                    <div className="hidden justify-center gap-2 sm:flex">
+                        {pets.links.map((link, i) => (
+                            <Button
+                                key={i}
+                                size="sm"
+                                variant={link.active ? 'default' : 'outline'}
+                                disabled={!link.url}
+                                onClick={() =>
+                                    link.url && router.visit(link.url)
+                                }
+                                className="min-w-[2.5rem]"
+                            >
+                                <span
+                                    dangerouslySetInnerHTML={{
+                                        __html: link.label,
+                                    }}
+                                />
+                            </Button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Pet Dialog */}
             {deleteTarget && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
                     <div className="max-h-[90vh] w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900">

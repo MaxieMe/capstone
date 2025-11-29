@@ -41,7 +41,11 @@ type Pet = {
     life_stage?: string | null;
     age_text?: string | null;
     is_approved?: boolean;
+
+    // 🔥 bagong field
+    latest_adopter_name?: string | null;
 };
+
 
 type GuestUser = {
     id: number;
@@ -94,6 +98,11 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
     const [deleteTarget, setDeleteTarget] = useState<Pet | null>(null);
     const [deleteConfirmText, setDeleteConfirmText] = useState('');
     const [deleteProcessing, setDeleteProcessing] = useState(false);
+
+    // Cancel modal state (reason)
+    const [cancelTarget, setCancelTarget] = useState<Pet | null>(null);
+    const [cancelReason, setCancelReason] = useState('');
+    const [cancelProcessing, setCancelProcessing] = useState(false);
 
     // Guest search
     const guestSearchForm = useForm({ q: filters?.q ?? '' });
@@ -175,7 +184,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
         !!currentUserId && pet.user?.id === currentUserId;
 
     const canShowEdit = (pet: Pet) =>
-    isOwner(pet) && pet.status === 'rejected';
+        isOwner(pet) && pet.status === 'rejected';
 
     const openCreateModal = () => {
         setEditingPet(null);
@@ -252,24 +261,11 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
         }
     };
 
-    const handleCancelPending = async (pet: Pet) => {
-        const ok = await confirm({
-            title: 'Cancel Adoption Request',
-            message: `Cancel this pending adoption request for ${pet.pet_name}?`,
-            confirmText: 'Yes, cancel',
-            cancelText: 'No',
-            variant: 'warning',
-        });
-
-        if (!ok) return;
-
-        router.post(
-            route('adoption.cancel', pet.id),
-            {},
-            {
-                preserveScroll: true,
-            },
-        );
+    // open cancel modal (with reason)
+    const handleCancelPending = (pet: Pet) => {
+        setCancelTarget(pet);
+        setCancelReason('');
+        setCancelProcessing(false);
     };
 
     const handleConfirmPending = async (pet: Pet) => {
@@ -463,7 +459,7 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                             <div className="mb-6 inline-flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-violet-100 to-purple-200 dark:from-gray-700 dark:to-gray-600">
                                 <span className="text-5xl">🔍</span>
                             </div>
-                            <h3 className="mb-2 text-2xl font-bold text-gray-900 dark:text-white">
+                            <h3 className="mb-2 text-2xl font-bold text-gray-900 dark:text:white">
                                 No users found
                             </h3>
                             <p className="mb-6 text-gray-600 dark:text-gray-400">
@@ -1020,48 +1016,47 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                                     </div>
 
                                     {/* Second row: Owner actions */}
-{isOwner(pet) && (
-    <div className="mt-3 flex flex-wrap gap-2">
-        {pet.status === 'pending' ? (
-            <>
-                {/* ✅ Pending → Cancel + Confirm */}
-                <button
-                    onClick={() => handleCancelPending(pet)}
-                    className="min-w-[90px] flex-1 rounded-xl border-2 border-amber-500 py-2 text-center text-sm font-semibold text-amber-600 transition-all hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-900/30"
-                >
-                    Cancel
-                </button>
-                <button
-                    onClick={() => handleConfirmPending(pet)}
-                    className="min-w-[90px] flex-1 rounded-xl border-2 border-emerald-500 py-2 text-center text-sm font-semibold text-emerald-600 transition-all hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-900/30"
-                >
-                    Confirm
-                </button>
-            </>
-        ) : (
-            <>
-                {/* ✅ Rejected lang ang may Edit */}
-                {canShowEdit(pet) && (
-                    <button
-                        onClick={() => openEditModal(pet)}
-                        className="min-w-[90px] flex-1 rounded-xl border-2 border-blue-500 py-2 text-center text-sm font-semibold text-blue-600 transition-all hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-900/30"
-                    >
-                        Edit
-                    </button>
-                )}
+                                    {isOwner(pet) && (
+                                        <div className="mt-3 flex flex-wrap gap-2">
+                                            {pet.status === 'pending' ? (
+                                                <>
+                                                    {/* Pending → Cancel + Confirm */}
+                                                    <button
+                                                        onClick={() => handleCancelPending(pet)}
+                                                        className="min-w-[90px] flex-1 rounded-xl border-2 border-amber-500 py-2 text-center text-sm font-semibold text-amber-600 transition-all hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-900/30"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleConfirmPending(pet)}
+                                                        className="min-w-[90px] flex-1 rounded-xl border-2 border-emerald-500 py-2 text-center text-sm font-semibold text-emerald-600 transition-all hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-900/30"
+                                                    >
+                                                        Confirm
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    {/* Rejected lang ang may Edit */}
+                                                    {canShowEdit(pet) && (
+                                                        <button
+                                                            onClick={() => openEditModal(pet)}
+                                                            className="min-w-[90px] flex-1 rounded-xl border-2 border-blue-500 py-2 text-center text-sm font-semibold text-blue-600 transition-all hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-900/30"
+                                                        >
+                                                            Edit
+                                                        </button>
+                                                    )}
 
-                {/* ✅ Lahat ng non-pending → may Delete (waiting_for_approval, available, adopted, rejected) */}
-                <button
-                    onClick={() => openDeleteDialog(pet)}
-                    className="min-w-[90px] flex-1 rounded-xl border-2 border-rose-500 py-2 text-center text-sm font-semibold text-rose-600 transition-all hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-900/30"
-                >
-                    Delete
-                </button>
-            </>
-        )}
-    </div>
-)}
-
+                                                    {/* Lahat ng non-pending → may Delete */}
+                                                    <button
+                                                        onClick={() => openDeleteDialog(pet)}
+                                                        className="min-w-[90px] flex-1 rounded-xl border-2 border-rose-500 py-2 text-center text-sm font-semibold text-rose-600 transition-all hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-900/30"
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                </>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         ))}
@@ -1128,6 +1123,82 @@ export default function Index({ adoption, guestUsers, filters }: PageProps) {
                                 />
                             </Button>
                         ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Cancel Pending Adoption Dialog (with reason) */}
+            {cancelTarget && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
+                    <div className="max-h-[90vh] w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900">
+                        <div className="border-b border-gray-200 px-5 pt-4 pb-3 dark:border-gray-800">
+                            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-50">
+                                Cancel Pending Adoption
+                            </h2>
+                        </div>
+
+                        <div className="space-y-3 px-5 py-4">
+                            <p className="text-sm text-gray-700 dark:text-gray-200">
+                                You are about to cancel the pending adoption for{' '}
+                                <span className="font-semibold">
+                                    {cancelTarget.pet_name}
+                                </span>
+                                .
+                            </p>
+
+                            <div>
+                                <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
+                                    Reason for cancelling (optional)
+                                </label>
+                                <textarea
+                                    rows={4}
+                                    value={cancelReason}
+                                    onChange={(e) =>
+                                        setCancelReason(e.target.value)
+                                    }
+                                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
+                                    placeholder="Example: Adopter changed their mind, schedule conflict, etc."
+                                />
+                            </div>
+
+                            <div className="mt-2 flex justify-end gap-2 border-t border-gray-200 pt-3 pb-4 dark:border-gray-800">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setCancelTarget(null);
+                                        setCancelReason('');
+                                        setCancelProcessing(false);
+                                    }}
+                                    className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+                                >
+                                    Keep pending
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={cancelProcessing}
+                                    onClick={() => {
+                                        if (!cancelTarget) return;
+                                        setCancelProcessing(true);
+                                        router.post(
+                                            route('adoption.cancel', cancelTarget.id),
+                                            { reason: cancelReason },
+                                            {
+                                                preserveScroll: true,
+                                                onFinish: () =>
+                                                    setCancelProcessing(false),
+                                                onSuccess: () => {
+                                                    setCancelTarget(null);
+                                                    setCancelReason('');
+                                                },
+                                            },
+                                        );
+                                    }}
+                                    className="rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    {cancelProcessing ? 'Cancelling…' : 'Confirm cancel'}
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}

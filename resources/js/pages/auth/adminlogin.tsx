@@ -6,49 +6,36 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import AuthLayout from '@/layouts/auth-layout';
-import { register } from '@/routes';
-import { store } from '@/routes/login';
-import { request } from '@/routes/password';
 import { Form, Head, router } from '@inertiajs/react';
 import { useState } from 'react';
 
-interface LoginProps {
+interface AdminLoginProps {
     status?: string;
-    canResetPassword: boolean;
-    canRegister: boolean;
 }
 
-export default function Login({
-    status,
-    canResetPassword,
-    canRegister,
-}: LoginProps) {
+export default function AdminLogin({ status }: AdminLoginProps) {
     const [showPassword, setShowPassword] = useState(false);
 
     const togglePasswordVisibility = () => {
         setShowPassword((prev) => !prev);
     };
 
-    // balik sa welcome
+    // Back → balik sa normal user login
     const handleExit = () => {
-        router.visit('/');
-    };
-
-    // 👉 ito ang magbubukas ng admin register form
-    const handleAdminSignup = () => {
-        router.visit('/admin/register'); // Inertia GET → render ng AdminRegister page
+        router.visit('/login');
     };
 
     return (
         <AuthLayout
-            title="Log in to your account"
-            description="Enter your email and password below to log in"
+            title="Log in as Admin"
+            description="Enter your admin email and password below to log in"
             backgroundClass="bg-white bg-[url('/images/welcome-bg.jpg')] bg-cover bg-center relative"
         >
-            <Head title="Log in" />
+            <Head title="Admin Login" />
 
             <Form
-                {...store.form()}
+                method="post"
+                action="/admin/login"
                 autoComplete="off"
                 resetOnSuccess={['password']}
                 className="flex flex-col gap-6 relative"
@@ -56,6 +43,7 @@ export default function Login({
                 {({ processing, errors }) => (
                     <>
                         <div className="grid gap-6">
+                            {/* Email */}
                             <div className="grid gap-2">
                                 <Label htmlFor="email">Email address</Label>
                                 <Input
@@ -71,14 +59,10 @@ export default function Login({
                                 <InputError message={errors.email} />
                             </div>
 
+                            {/* Password */}
                             <div className="grid gap-2">
                                 <div className="flex items-center">
                                     <Label htmlFor="password">Password</Label>
-                                    {canResetPassword && (
-                                        <TextLink href={request()} className="ml-auto text-sm">
-                                            Forgot password?
-                                        </TextLink>
-                                    )}
                                 </div>
 
                                 <div className="relative group">
@@ -111,57 +95,44 @@ export default function Login({
                                 <InputError message={errors.password} />
                             </div>
 
+                            {/* Remember me */}
                             <div className="flex items-center space-x-3">
                                 <Checkbox id="remember" name="remember" tabIndex={3} />
                                 <Label htmlFor="remember">Remember me</Label>
                             </div>
 
+                            {/* Submit */}
                             <Button
                                 type="submit"
                                 className="mt-4 w-full"
                                 tabIndex={4}
                                 disabled={processing}
-                                data-test="login-button"
+                                data-test="admin-login-button"
                             >
                                 {processing && <Spinner />}
-                                Log in
+                                Log in as Admin
                             </Button>
                         </div>
 
-                        {canRegister && (
-                            <div className="mt-4 text-center text-sm text-muted-foreground space-y-2">
-                                <div>
-                                    Don't have an account?{' '}
-                                    <TextLink href={register()} tabIndex={5}>
-                                        Sign up
-                                    </TextLink>
-                                </div>
-
-                                {/* 👉 DITO LALABAS YUNG BUTTON */}
-                                <div className="flex justify-center">
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        className="border-dashed"
-                                        onClick={handleAdminSignup}
-                                    >
-                                        Sign up as Admin
-                                    </Button>
-                                </div>
-                            </div>
-                        )}
+                        {/* Link: log in as normal user */}
+                        <div className="mt-4 text-center text-sm text-muted-foreground">
+                            Want to log in as user instead?{' '}
+                            <TextLink href="/login" tabIndex={5}>
+                                Log in as user
+                            </TextLink>
+                        </div>
                     </>
                 )}
             </Form>
 
+            {/* Status (success / info message) */}
             {status && (
                 <div className="mb-4 text-center text-sm font-medium text-green-600">
                     {status}
                 </div>
             )}
 
-            {/* 💜  back Button (bottom-left corner) */}
+            {/* Back Button - Bottom Left */}
             <button
                 onClick={handleExit}
                 className="absolute bottom-6 left-6 bg-purple-600 text-white px-5 py-2 rounded-md shadow-md hover:bg-purple-700 transition"

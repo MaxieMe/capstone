@@ -1,3 +1,4 @@
+// resources/js/Pages/Adoption/Show.tsx
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import React, { useMemo, useState } from 'react';
@@ -31,9 +32,17 @@ type Pet = {
     image_url?: string | null;
     status?: 'submitted' | 'available' | 'pending' | 'adopted' | string | null;
     created_at?: string | null;
-    life_stage?: string | null; // optional from backend
-    age_text?: string | null; // optional from backend
+    life_stage?: string | null;
+    age_text?: string | null;
     sponsor?: SponsorInfo | null;
+
+    // adopted + cancelled extra fields
+    adopter_name?: string | null;
+    adopted_at?: string | null;
+
+    cancelled_by?: ProfileUser | null;
+    cancelled_reason?: string | null;
+    cancelled_at?: string | null;
 };
 
 const PLACEHOLDER =
@@ -51,6 +60,16 @@ function ageText(age?: number | null, unit?: string | null) {
               ? 'year'
               : 'years';
     return `${age} ${label}`;
+}
+
+// helper para sa cancelled_at
+function formatDateTime(value?: string | null) {
+    if (!value) return 'N/A';
+    const d = new Date(value);
+    return d.toLocaleString(undefined, {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+    });
 }
 
 function computeLifeStage(
@@ -90,6 +109,15 @@ export default function Show({ pet }: { pet: Pet }) {
     const sponsor = pet.sponsor ?? null;
     const [showSponsorViewModal, setShowSponsorViewModal] = useState(false);
 
+    const adoptedAtText = pet.adopted_at ? formatDateTime(pet.adopted_at) : null;
+
+    // 🔴 Fallback reason kung sakaling null/empty yung galing backend
+const cancelReasonText =
+    pet.cancelled_reason && pet.cancelled_reason.trim().length > 0
+        ? pet.cancelled_reason
+        : 'The potential adopter did not meet the qualifications of our adoption criteria.';
+
+
     // ====== State for Adoption Inquiry modal (IMPROVED FORM) ======
     const [isInquiryOpen, setInquiryOpen] = useState(false);
     const {
@@ -103,9 +131,9 @@ export default function Show({ pet }: { pet: Pet }) {
         name: '',
         email: '',
         phone: '',
-        visit_at: '', // datetime-local (Date of Visitation and Time)
-        location: '', // Meet up or location
-        message: '', // optional notes
+        visit_at: '',
+        location: '',
+        message: '',
     });
 
     // ====== State for Sponsorship modal ======
@@ -273,10 +301,7 @@ export default function Show({ pet }: { pet: Pet }) {
                                         src={safeImage}
                                         alt={pet.pet_name}
                                         onError={(e) => {
-                                            if (
-                                                e.currentTarget.src !==
-                                                PLACEHOLDER
-                                            )
+                                            if (e.currentTarget.src !== PLACEHOLDER)
                                                 e.currentTarget.src =
                                                     PLACEHOLDER;
                                         }}
@@ -416,27 +441,108 @@ export default function Show({ pet }: { pet: Pet }) {
 
                                     {/* Description */}
                                     <div className="group rounded-2xl bg-gradient-to-r from-green-50 to-emerald-50 p-4 transition-all hover:shadow-lg sm:p-5 dark:from-gray-700 dark:to-green-900/30">
-  <div className="flex items-start gap-3">
-    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-green-200 transition-transform group-hover:scale-110 sm:h-12 sm:w-12 dark:bg-green-700">
-      <span className="text-xl sm:text-2xl">
-        📝
-      </span>
-    </div>
+                                        <div className="flex items-start gap-3">
+                                            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-green-200 transition-transform group-hover:scale-110 sm:h-12 sm:w-12 dark:bg-green-700">
+                                                <span className="text-xl sm:text-2xl">
+                                                    📝
+                                                </span>
+                                            </div>
 
-    <div className="min-w-0 flex-1">
-      <p className="mb-2 text-xs font-semibold text-green-600 sm:text-sm dark:text-green-400">
-        Description
-      </p>
+                                            <div className="min-w-0 flex-1">
+                                                <p className="mb-2 text-xs font-semibold text-green-600 sm:text-sm dark:text-green-400">
+                                                    Description
+                                                </p>
 
-      {/* Scrollable container for long text */}
-      <div className="max-h-40 overflow-y-auto pr-1">
-        <p className="text-sm leading-relaxed text-gray-700 sm:text-base dark:text-gray-300 whitespace-pre-wrap break-words">
-          {pet.description || 'No description provided.'}
-        </p>
-      </div>
+                                                {/* Scrollable container for long text */}
+                                                <div className="max-h-40 overflow-y-auto pr-1">
+                                                    <p className="text-sm leading-relaxed text-gray-700 sm:text-base dark:text-gray-300 whitespace-pre-wrap break-words">
+                                                        {pet.description ||
+                                                            'No description provided.'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                   {/* ✅ ADOPTED INFO CARD (mirror ng cancelled card pero green) */}
+{/* ✅ ADOPTED INFO CARD (smaller, minimal text) */}
+{pet.status === 'adopted' && (
+    <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 sm:p-4 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/20">
+        <div className="flex items-start gap-3 sm:gap-4">
+            {/* Green check icon */}
+            <div className="mt-1 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white shadow-md sm:h-10 sm:w-10 text-sm">
+                ✓
+            </div>
+
+            <div className="space-y-1.5">
+                <p className="text-sm font-semibold sm:text-base">
+                    This pet has been successfully adopted.
+                </p>
+
+                <p className="text-xs sm:text-sm">
+                    <span className="font-semibold">Adopted by:</span>{' '}
+                    {pet.adopter_name || 'A verified adopter'}
+                </p>
+
+                {pet.adopted_at && (
+                    <p className="pt-1 text-[11px] text-emerald-700/80 sm:text-xs dark:text-emerald-300/80">
+                        {formatDateTime(pet.adopted_at)}
+                    </p>
+                )}
+            </div>
+        </div>
     </div>
-  </div>
-</div>
+)}
+
+
+
+                            {/* 🔴 Cancellation info – lalabas lang kung HINDI adopted */}
+{pet.status !== 'adopted' && pet.cancelled_by && (
+    <div className="mt-4 rounded-2xl bg-red-50 border border-red-200 p-4 dark:bg-red-900/20 dark:border-red-800">
+        <div className="flex items-start gap-3">
+            <div className="mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-red-500 text-white shadow">
+                ✖
+            </div>
+            <div className="space-y-1 text-sm">
+                <p className="font-semibold text-red-700 dark:text-red-300">
+                    This adoption request was previously cancelled.
+                </p>
+
+                {/* 👇 bagong linya: name ng nag-adoption inquiry */}
+                {pet.adopter_name && (
+                    <p className="text-red-700 dark:text-red-200">
+                        <span className="font-semibold">
+                            Adoption inquiry from:
+                        </span>{' '}
+                        {pet.adopter_name}
+                    </p>
+                )}
+
+                <p className="text-red-700 dark:text-red-200">
+                    <span className="font-semibold">Cancelled by:</span>{' '}
+                    {pet.cancelled_by.name}
+                </p>
+
+                {pet.cancelled_reason && (
+                    <p className="text-red-700 dark:text-red-200">
+                        <span className="font-semibold">Reason:</span>{' '}
+                        <span className="italic">{pet.cancelled_reason}</span>
+                    </p>
+                )}
+
+                {pet.cancelled_at && (
+                    <p className="text-xs text-red-500/80 dark:text-red-300/70">
+                        {formatDateTime(pet.cancelled_at)}
+                    </p>
+                )}
+            </div>
+        </div>
+    </div>
+)}
+
+
+
+
 
                                 </div>
 

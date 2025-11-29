@@ -11,91 +11,105 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { NavItem } from '@/types';
-import { Link } from '@inertiajs/react';
-import { LayoutGrid, Shield, Settings, Users, Info, HandHeart, Newspaper, History, QrCode } from 'lucide-react';
-import { usePage } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
+import {
+    LayoutGrid,
+    Shield,
+    Settings,
+    Users,
+    Info,
+    HandHeart,
+    Newspaper,
+    History,
+    QrCode,
+    Trash2, // 🔥 import
+} from 'lucide-react';
 import AppLogo from './app-logo';
 import { dashboard } from '@/routes';
 
 export function AppSidebar() {
+    const { auth } = usePage().props as any;
+    const userRole = auth?.user?.role || 'guest';
+    const isGuest = !auth?.user;
 
+    const guestNavItems: NavItem[] = [
+        {
+            title: 'Adoption',
+            href: '/adoption',
+            icon: HandHeart,
+        },
+    ];
 
-const {auth} = usePage().props;
-const userRole = auth?.user?.role || 'guest';
-const isGuest = !auth?.user;
+    const mainNavItems: NavItem[] = [
+        {
+            title: 'Profile',
+            href: '/profile',
+            icon: Users,
+        },
+        {
+            title: 'Adoption',
+            href: '/adoption',
+            icon: HandHeart,
+        },
 
-const guestNavItems: NavItem[] = [
-    {
-    title: 'Adoption',
-    href: '/adoption',
-    icon: HandHeart,
-    },
-];
+    ];
 
-const mainNavItems: NavItem[] = [
-    {
-        title: 'Profile',
-        href: '/profile',
-        icon: Users,
-    },
-    {
-        title: 'Adoption',
-        href: '/adoption',
-        icon: HandHeart,
-    },
-];
+    const adminNavItems: NavItem[] = [
+        {
+            title: 'Dashboard',
+            href: dashboard(),
+            icon: LayoutGrid,
+        },
+        {
+            title: 'Manage Users',
+            href: '/manage_users',
+            icon: Settings,
+        },
+        {
+            title: 'Manage Posts',
+            href: '/manage_posts',
+            icon: Newspaper,
+        },
+        {
+            title: 'Manage Qr Code',
+            href: '/sponsors',
+            icon: QrCode,
+        },
+        {
+            title: 'Transaction History',
+            href: '/transaction_history',
+            icon: History,
+        },
+    ];
 
-const adminNavItems: NavItem[] = [
-    {
-        title: 'Dashboard',
-        href: dashboard(),
-        icon: LayoutGrid,
-    },
-    {
-        title: 'Manage Users',
-        href: '/manage_users',
-        icon: Settings,
-    },
-    {
-        title: 'Manage Posts',
-        href: '/manage_posts',
-        icon: Newspaper,
-    },
-    {
-        title: 'Manage Qr Code',
-        href: '/sponsors',
-        icon: QrCode,
-    },
-    {
-        title: 'Transaction History',
-        href: '/transaction_history',
-        icon: History,
-    },
-];
-
-const superAdminNavItems: NavItem[] = [
-
-];
+    const superAdminNavItems: NavItem[] = [
+        // kung meron ka pang extra
+        {
+            title: 'Recycle Bin',          // 🔥 new
+            href: '/adoption/recycle-bin', // same as route('adoption.trash')
+            icon: Trash2,
+        },
+    ];
 
     let roleBasedNavItems = [...mainNavItems];
 
-    if(isGuest) {
+    if (isGuest) {
         roleBasedNavItems = guestNavItems;
     }
-    if(userRole === 'admin') {
+    if (userRole === 'admin') {
         roleBasedNavItems = [...roleBasedNavItems, ...adminNavItems];
     }
-    if(userRole === 'superadmin') {
+    if (userRole === 'superadmin') {
         roleBasedNavItems = [...roleBasedNavItems, ...adminNavItems, ...superAdminNavItems];
     }
 
-const footerNavItems: NavItem[] = [
-    {
-        title: 'About Us',
-        href: '/about',
-        icon: Info,
-    },
-];
+    const footerNavItems: NavItem[] = [
+        {
+            title: 'About Us',
+            href: '/about',
+            icon: Info,
+        },
+    ];
 
     return (
         <Sidebar collapsible="icon" variant="inset">

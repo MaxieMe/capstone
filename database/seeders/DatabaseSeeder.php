@@ -17,9 +17,6 @@ class DatabaseSeeder extends Seeder
 
         $this->call([
             SuperAdminSeeder::class,
-            AdoptionInquirySeeder::class,
-             SponsorSeeder::class,
-            AdoptionSeeder::class,
         ]);
     }
 }

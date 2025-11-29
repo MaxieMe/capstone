@@ -6,14 +6,18 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+
+// app/Models/AdoptionInquiry.php
+
 class AdoptionInquiry extends Model
 {
     use HasFactory;
 
     protected $fillable = [
         'adoption_id',
+        'user_id',
         'requester_id',
-        'requester_name',
+        'requester_name',  // ← ito ang gagamitin natin
         'requester_email',
         'requester_phone',
         'visit_at',
@@ -32,3 +36,4 @@ class AdoptionInquiry extends Model
         return $this->belongsTo(User::class, 'requester_id');
     }
 }
+

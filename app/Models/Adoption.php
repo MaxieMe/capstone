@@ -6,11 +6,15 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Storage;
+
+// app/Models/Adoption.php
 
 class Adoption extends Model
 {
     use HasFactory;
+    use SoftDeletes;
 
     protected $fillable = [
         'user_id',
@@ -26,7 +30,28 @@ class Adoption extends Model
         'status',
         'image_path',
         'is_approved',
+
+        // ✅ NEW
+        'adopter_name',
+        'adopted_at',
+        'cancelled_by_user_id',
+        'cancelled_reason',
+        'cancelled_at',
     ];
+
+
+    protected $casts = [
+        'age'           => 'integer',
+        'is_approved'   => 'boolean',
+        'deleted_at'    => 'datetime',
+        'cancelled_at'  => 'datetime',
+        'adopted_at'    => 'datetime',
+    ];
+
+    // 👉 para lagi kasama sa JSON response (Inertia) si image_url
+    protected $appends = ['image_url'];
+
+    /* ---------------- Mutators ---------------- */
 
     public function setPetNameAttribute($value)
     {
@@ -42,13 +67,6 @@ class Adoption extends Model
     {
         $this->attributes['description'] = ucfirst($value);
     }
-    protected $casts = [
-        'age' => 'integer',
-        'is_approved' => 'boolean',
-    ];
-
-    // 👉 para lagi kasama sa JSON response (Inertia) si image_url
-    protected $appends = ['image_url'];
 
     /* ---------------- Relationships ---------------- */
 
@@ -62,9 +80,14 @@ class Adoption extends Model
         return $this->hasMany(AdoptionInquiry::class);
     }
 
+    // 🔥 sino yung nag-cancel
+    public function cancelledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by_user_id');
+    }
+
     /* ---------------- Scopes ---------------- */
 
-    // Kung saan mo pa ginagamit, pwede mo pa rin ito
     public function scopeApproved($query)
     {
         return $query->where('is_approved', true);
@@ -78,20 +101,16 @@ class Adoption extends Model
 
     /* ---------------- Accessors ---------------- */
 
-    // 🔥 Ito yung nag-cause ng error dati — inayos na
     public function getImageUrlAttribute(): ?string
     {
-        // kung walang image_path → siguradong magre-return ng null
         if (!$this->image_path) {
             return null;
         }
 
-        // try lang, in case may problema sa disk config, hindi magcrash
         try {
-            // kung "public" disk ang gamit mo (storage:link)
-            return $this->image_url = $this->image_path ? Storage::url($this->image_path) : null;
-            // kung plain Storage::url() lang ang gamit mo dati, puwede rin:
-            // return Storage::url($this->image_path);
+            return $this->image_url = $this->image_path
+                ? Storage::url($this->image_path)
+                : null;
         } catch (\Throwable $e) {
             return null;
         }

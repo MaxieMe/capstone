@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Admin\AdminLoginController;
+use App\Http\Controllers\Admin\AdminRegisterController;
 use App\Http\Controllers\AdoptionContactController;
 use App\Http\Controllers\AdoptionController;
 use App\Http\Controllers\AdoptionInquiryController;
@@ -19,9 +21,41 @@ use Inertia\Inertia;
 Route::get('/', fn () => Inertia::render('welcome'))->name('home');
 Route::get('/about', fn () => Inertia::render('About/About'))->name('about');
 
-/* Adoption - public can browse */
-Route::get('/adoption', [AdoptionController::class, 'index'])->name('adoption.index');
-Route::get('/adoption/{adoption}', [AdoptionController::class, 'show'])->name('adoption.show');
+Route::middleware('guest')->group(function () {
+    Route::get('/admin/register', [AdminRegisterController::class, 'create'])
+        ->name('admin.register');
+
+    Route::post('/admin/register', [AdminRegisterController::class, 'store'])
+        ->name('admin.register.store');
+
+        // Admin register
+    Route::get('/admin/register', [AdminRegisterController::class, 'create'])
+        ->name('admin.register');
+
+    Route::post('/admin/register', [AdminRegisterController::class, 'store'])
+        ->name('admin.register.store');
+
+    // Admin login
+Route::get('/admin/login', [AdminLoginController::class, 'create'])
+        ->name('admin.login');
+
+    Route::post('/admin/login', [AdminLoginController::class, 'store'])
+        ->name('admin.login.store');
+});
+
+
+/*
+|--------------------------------------------------------------------------
+| Adoption - public can browse
+|--------------------------------------------------------------------------
+*/
+Route::get('/adoption', [AdoptionController::class, 'index'])
+    ->name('adoption.index');
+
+// IMPORTANT: limit to numeric IDs to avoid conflict with /adoption/recycle-bin
+Route::get('/adoption/{adoption}', [AdoptionController::class, 'show'])
+    ->whereNumber('adoption')
+    ->name('adoption.show');
 
 /*
 |--------------------------------------------------------------------------
@@ -36,13 +70,13 @@ Route::post('/adoption/{adoption}/inquire', [AdoptionInquiryController::class, '
     ->name('adoption.inquire')
     ->middleware('throttle:5,1');
 
-
 /*
 |--------------------------------------------------------------------------
 | Public profile view
 |--------------------------------------------------------------------------
 */
-Route::get('/profile/{name}', [ProfileController::class, 'show'])->name('profile.show');
+Route::get('/profile/{name}', [ProfileController::class, 'show'])
+    ->name('profile.show');
 
 /*
 |--------------------------------------------------------------------------
@@ -71,14 +105,30 @@ Route::middleware(['auth'])->group(function () {
 Route::middleware(['auth', 'verified', 'approved'])->group(function () {
 
     // Profile - go to own profile (redirect to /profile/{name})
-    Route::get('/profile', [ProfileController::class, 'index'])->name('profile.index');
+    Route::get('/profile', [ProfileController::class, 'index'])
+        ->name('profile.index');
 
     /*
     |--------------------------------------------------------------------------
     | Adoption actions (only logged-in & approved)
     |--------------------------------------------------------------------------
     */
-    Route::post('/adoption', [AdoptionController::class, 'store'])->name('adoption.store');
+    Route::post('/adoption', [AdoptionController::class, 'store'])
+        ->name('adoption.store');
+
+    // 🔥 Recycle Bin - list of soft-deleted adoption posts
+    Route::get('/adoption/recycle-bin', [AdoptionController::class, 'trash'])
+        ->name('adoption.trash');
+
+    // 🔥 Restore soft-deleted adoption
+    Route::post('/adoption/{id}/restore', [AdoptionController::class, 'restore'])
+        ->whereNumber('id')
+        ->name('adoption.restore');
+
+    // 🔥 Permanently delete soft-deleted adoption
+    Route::delete('/adoption/{id}/force-delete', [AdoptionController::class, 'forceDelete'])
+        ->whereNumber('id')
+        ->name('adoption.forceDelete');
 
     Route::post(
         '/adoption/{adoption}/mark-adopted',
@@ -124,7 +174,8 @@ Route::middleware(['auth', 'verified', 'approved'])->group(function () {
 */
 Route::middleware(['auth', 'verified', 'approved', 'role:admin,superadmin'])->group(function () {
 
-    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/dashboard', [DashboardController::class, 'index'])
+        ->name('dashboard');
 
     /*
     |--------------------------------------------------------------------------

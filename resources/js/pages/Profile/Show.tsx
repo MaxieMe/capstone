@@ -224,20 +224,24 @@ export default function ProfileShow({
 
     const isOwnerOrAdmin = isOwner || isAdmin;
 
-const statusOptions: { label: string; value: StatusFilter }[] = isOwnerOrAdmin
-    ? [
-          { label: 'All', value: 'All' },
-          { label: 'Waiting for Approval', value: 'waiting_for_approval' },
-          { label: 'Available', value: 'available' },
-          { label: 'Pending', value: 'pending' },
-          { label: 'Adopted', value: 'adopted' },
-          { label: 'Rejected', value: 'rejected' },
-      ]
-    : [
-          { label: 'All', value: 'All' },
-          { label: 'Available', value: 'available' },
-          { label: 'Pending', value: 'pending' },
-      ];
+    const statusOptions: { label: string; value: StatusFilter }[] =
+        isOwnerOrAdmin
+            ? [
+                  { label: 'All', value: 'All' },
+                  {
+                      label: 'Waiting for Approval',
+                      value: 'waiting_for_approval',
+                  },
+                  { label: 'Available', value: 'available' },
+                  { label: 'Pending', value: 'pending' },
+                  { label: 'Adopted', value: 'adopted' },
+                  { label: 'Rejected', value: 'rejected' },
+              ]
+            : [
+                  { label: 'All', value: 'All' },
+                  { label: 'Available', value: 'available' },
+                  { label: 'Pending', value: 'pending' },
+              ];
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -284,6 +288,10 @@ const statusOptions: { label: string; value: StatusFilter }[] = isOwnerOrAdmin
         sponsorReset();
         setShowSponsorModal(true);
     };
+
+    // 🔴 cancel modal state
+    const [cancelTarget, setCancelTarget] = useState<Pet | null>(null);
+    const [cancelReason, setCancelReason] = useState('');
 
     const closeSponsorModal = () => {
         setShowSponsorModal(false);
@@ -340,24 +348,10 @@ const statusOptions: { label: string; value: StatusFilter }[] = isOwnerOrAdmin
         });
     };
 
-    const handleCancelPending = async (pet: Pet) => {
-        const ok = await confirm({
-            title: 'Cancel Adoption Request',
-            message: `Cancel this pending adoption request for ${pet.pet_name}?`,
-            confirmText: 'Yes, cancel',
-            cancelText: 'No',
-            variant: 'warning',
-        });
-
-        if (!ok) return;
-
-        router.post(
-            route('adoption.cancel', pet.id),
-            {},
-            {
-                preserveScroll: true,
-            },
-        );
+    // OPEN cancel modal
+    const handleCancelPending = (pet: Pet) => {
+        setCancelTarget(pet);
+        setCancelReason('');
     };
 
     const handleConfirmPending = async (pet: Pet) => {
@@ -417,7 +411,12 @@ const statusOptions: { label: string; value: StatusFilter }[] = isOwnerOrAdmin
 
             {/* Disable scroll kapag may kahit anong modal */}
             <DisableScroll
-                showModal={showModal || showSponsorModal || showSponsorViewModal}
+                showModal={
+                    showModal ||
+                    showSponsorModal ||
+                    showSponsorViewModal ||
+                    !!cancelTarget
+                }
             />
 
             {/* Header */}
@@ -1043,23 +1042,24 @@ const statusOptions: { label: string; value: StatusFilter }[] = isOwnerOrAdmin
                                 ))}
                             </div>
 
-                           {/* Status buttons */}
-<div className="flex flex-wrap gap-2">
-    {statusOptions.map((s) => (
-        <button
-            key={s.value}
-            onClick={() => applyFilters(activeCategory, s.value)}
-            className={`rounded-full px-4 py-2 font-semibold transition-all ${
-                activeStatus === s.value
-                    ? 'scale-105 bg-gradient-to-r from-pink-600 to-rose-600 text-white shadow-lg'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
-            }`}
-        >
-            {s.label}
-        </button>
-    ))}
-</div>
-
+                            {/* Status buttons */}
+                            <div className="flex flex-wrap gap-2">
+                                {statusOptions.map((s) => (
+                                    <button
+                                        key={s.value}
+                                        onClick={() =>
+                                            applyFilters(activeCategory, s.value)
+                                        }
+                                        className={`rounded-full px-4 py-2 font-semibold transition-all ${
+                                            activeStatus === s.value
+                                                ? 'scale-105 bg-gradient-to-r from-pink-600 to-rose-600 text-white shadow-lg'
+                                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                                        }`}
+                                    >
+                                        {s.label}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1224,8 +1224,6 @@ const statusOptions: { label: string; value: StatusFilter }[] = isOwnerOrAdmin
                                             )}
                                         </div>
                                     )}
-
-
                                 </div>
                             </div>
                         ))}
@@ -1311,6 +1309,78 @@ const statusOptions: { label: string; value: StatusFilter }[] = isOwnerOrAdmin
                                 />
                             </Button>
                         ))}
+                    </div>
+                </div>
+            )}
+
+            {/* 🔴 Cancel Adoption Dialog */}
+            {cancelTarget && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
+                    <div className="max-h-[90vh] w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900">
+                        <div className="border-b border-gray-200 px-5 pt-4 pb-3 dark:border-gray-800">
+                            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-50">
+                                Cancel Adoption Request
+                            </h2>
+                        </div>
+
+                        <div className="space-y-3 px-5 py-4">
+                            <p className="text-sm text-gray-700 dark:text-gray-200">
+                                Cancel this pending adoption request for{' '}
+                                <span className="font-semibold">
+                                    {cancelTarget.pet_name || 'this pet'}
+                                </span>
+                                ?
+                            </p>
+
+                            <textarea
+                                rows={3}
+                                value={cancelReason}
+                                onChange={(e) => setCancelReason(e.target.value)}
+                                placeholder="Optional: add a reason for cancelling..."
+                                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 focus:border-rose-500 focus:ring-2 focus:ring-rose-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:focus:border-rose-400 dark:focus:ring-rose-900/40"
+                            />
+
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                If you leave this blank, a default reason will be
+                                used.
+                            </p>
+
+                            <div className="mt-2 flex justify-end gap-2 border-t border-gray-200 pt-3 pb-4 dark:border-gray-800">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setCancelTarget(null);
+                                        setCancelReason('');
+                                    }}
+                                    className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+                                >
+                                    No
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (!cancelTarget) return;
+                                        router.post(
+                                            route(
+                                                'adoption.cancel',
+                                                cancelTarget.id,
+                                            ),
+                                            { reason: cancelReason },
+                                            {
+                                                preserveScroll: true,
+                                                onSuccess: () => {
+                                                    setCancelTarget(null);
+                                                    setCancelReason('');
+                                                },
+                                            },
+                                        );
+                                    }}
+                                    className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-rose-700"
+                                >
+                                    Yes, cancel
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
